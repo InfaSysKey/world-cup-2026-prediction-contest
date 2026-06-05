@@ -39,3 +39,12 @@ export const AUTH_TOKEN_BYTES = 32;
 // Límites de longitud de contraseña. El máximo es el límite de bcrypt (72 bytes).
 export const PASSWORD_MIN_LENGTH = 8;
 export const PASSWORD_MAX_LENGTH = 72;
+
+// --- Resultados oficiales (Slice 3, scoring-rules.md §2-3) ---
+
+// Tope de goles por equipo aceptado al introducir un marcador.
+export const MAX_GOLES = 20;
+
+// Premios del podio: se guardan por equipo (team_code). El resto de premios
+// (botas/balones) se guardan por nombre de jugador (data-model.md §5.3).
+export const PODIUM_AWARD_KINDS = ['champion', 'runner_up', 'third'] as const;
