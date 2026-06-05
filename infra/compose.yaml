@@ -1,0 +1,59 @@
+# infra/compose.yml
+version: "3.9"
+
+services:
+  db:
+    image: docker.io/postgres:16-alpine
+    container_name: porra-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: porra
+      POSTGRES_PASSWORD: porra
+      POSTGRES_DB: porra
+    volumes:
+      - porra-db-data:/var/lib/postgresql/data
+      - ./scripts/backups:/backups
+    ports:
+      - "127.0.0.1:5432:5432"   # solo localhost; en VPS no expuesto fuera
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U porra"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: ..
+      dockerfile: infra/Containerfile
+    container_name: porra-app
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://porra:porra@db:5432/porra
+      APP_URL: https://porra.tudominio.com
+      COOKIE_SECRET: ${COOKIE_SECRET}
+      TOURNAMENT_START_AT: "2026-06-11T17:00:00Z"
+    expose:
+      - "3000"
+
+  proxy:
+    image: docker.io/caddy:2-alpine
+    container_name: porra-proxy
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - porra-caddy-data:/data
+      - porra-caddy-config:/config
+
+volumes:
+  porra-db-data:
+  porra-caddy-data:
+  porra-caddy-config:
