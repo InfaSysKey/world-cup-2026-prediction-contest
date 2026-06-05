@@ -6,7 +6,7 @@
 
 ## 1. Visión general
 
-12 tablas, agrupadas en 4 zonas:
+15 tablas, agrupadas en 4 zonas:
 
 | Zona | Tablas | Quién escribe |
 |---|---|---|
@@ -17,6 +17,10 @@
 
 **Convenciones globales**:
 - Todas las tablas tienen `created_at timestamptz NOT NULL DEFAULT now()`. Las que se modifican post-creación añaden `updated_at` con trigger o `$onUpdate` de Drizzle.
+  - **Excepciones documentadas** (sin `created_at`/`updated_at`):
+    - `sessions`: solo `expires_at` (su vida la marca la caducidad, no la edición).
+    - `teams`: sin `updated_at` (catálogo inmutable tras el seed).
+    - `scores`: usa `calculated_at` como única columna temporal. Cada fila se _upserta_ (UNIQUE `(user_id, category)`) en cada recálculo, de modo que `calculated_at` cumple a la vez el papel de `created_at` y `updated_at`. Añadir ambas sería redundante para una tabla derivada y siempre regenerable.
 - PKs: `id` autonuméricas (`serial`/`bigserial`) salvo donde un código natural sea claramente mejor (ej. `teams.code = 'ESP'`).
 - FKs: siempre con `ON DELETE` explícito.
 - Booleanos por defecto `false`.
@@ -164,6 +168,8 @@ Marcador exacto de cada partido de fase de grupos.
 
 **Constraint UNIQUE** `(user_id, match_id)`.
 
+**Índices**: `user_id` (cargar la porra de un usuario) y `match_id` (comparativa: todas las predicciones de un partido cuando el admin mete resultado).
+
 ### 4.2 `predictions_group_standings`
 
 Orden 1–4 que el usuario predice en cada grupo.
@@ -182,6 +188,8 @@ Orden 1–4 que el usuario predice en cada grupo.
 - UNIQUE `(user_id, group_letter, team_code)` (no puedes poner el mismo equipo en dos posiciones)
 - CHECK: `team_code` debe pertenecer al grupo `group_letter` (mejor validar en app — Postgres no puede hacer joins en CHECK)
 
+**Índices**: `user_id` (porra del usuario) y `group_letter` (comparativa de un grupo entre todos los usuarios).
+
 ### 4.3 `predictions_best_thirds`
 
 Los 8 mejores terceros que el usuario predice que clasifican.
@@ -196,6 +204,8 @@ Los 8 mejores terceros que el usuario predice que clasifican.
 
 **Constraints**: UNIQUE `(user_id, position)`, UNIQUE `(user_id, team_code)`. Validación en app: el team debe estar en 3ª posición en la predicción de standings del mismo usuario (coherencia).
 
+**Índices**: `user_id` (porra del usuario).
+
 ### 4.4 `predictions_knockout`
 
 Ganadores que el usuario predice para cada cruce eliminatorio.
@@ -209,6 +219,8 @@ Ganadores que el usuario predice para cada cruce eliminatorio.
 | `created_at` / `updated_at` | `timestamptz` | no | `now()` | |
 
 **Constraint UNIQUE** `(user_id, match_id)`.
+
+**Índices**: `user_id` (porra del usuario) y `match_id` (comparativa por cruce).
 
 **Notas**: cubre 1/16 (16 cruces) + 1/8 (8) + cuartos (4) + semis (2) + 3-4 (1) + final (1) = 32 filas por usuario. Campeón = ganador del partido `phase='final'`. 3.º = ganador del partido `phase='3-4'`.
 
@@ -230,6 +242,8 @@ Premios individuales y podio explícito (redundante con knockout pero más simpl
 **Constraint UNIQUE** `(user_id, kind)`.
 
 **Validación en app**: si `kind` en (champion, runner_up, third), `team_code` debe estar; si es un boot/ball, `player_name` debe estar y el otro `null`.
+
+**Índices**: `user_id` (porra del usuario).
 
 ---
 
@@ -280,6 +294,10 @@ Desglose de puntos por usuario y categoría. Una fila por usuario y categoría. 
 
 **Constraint UNIQUE** `(user_id, category)`.
 
+**Columnas temporales**: solo `calculated_at` (ver excepción en §1). No lleva `created_at`/`updated_at`.
+
+**Índices**: ninguno explícito sobre `user_id`. El índice compuesto que respalda el UNIQUE `(user_id, category)` lleva `user_id` como columna líder, por lo que ya sirve tanto el filtro `WHERE user_id = ?` como el `JOIN` del ranking (§6.1). Añadir un `idx_scores_user_id` aparte sería redundante (política de índices: nada "por si acaso").
+
 **Total por usuario**: `SUM(points)`. Se cachea como vista materializada o se computa con `GROUP BY` (con 15 usuarios sobra cualquiera).
 
 ### 5.5 `score_recalculations` (auditoría)
@@ -294,6 +312,8 @@ Cada vez que el motor recalcula tras un cambio del admin, deja huella.
 | `affected_categories` | `text[]` | no | — | Qué categorías se recalcularon |
 | `users_affected` | `integer` | no | — | Cuántas filas de `scores` cambiaron |
 | `created_at` | `timestamptz` | no | `now()` | |
+
+**Índices**: `triggered_by` (historial de recálculos filtrado por admin en la vista de auditoría).
 
 ---
 

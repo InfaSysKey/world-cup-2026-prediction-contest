@@ -79,17 +79,24 @@ const updatedAt = timestamp('updated_at', { withTimezone: true })
 // Zona Identidad
 // ===========================================================================
 
-export const users = pgTable('users', {
-  id: bigserial('id', { mode: 'number' }).primaryKey(),
-  email: text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
-  nombre: text('nombre').notNull(),
-  apellidos: text('apellidos').notNull(),
-  nickname: text('nickname').notNull().unique(),
-  isAdmin: boolean('is_admin').notNull().default(false),
-  createdAt,
-  updatedAt,
-});
+export const users = pgTable(
+  'users',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    email: text('email').notNull(),
+    passwordHash: text('password_hash').notNull(),
+    nombre: text('nombre').notNull(),
+    apellidos: text('apellidos').notNull(),
+    nickname: text('nickname').notNull(),
+    isAdmin: boolean('is_admin').notNull().default(false),
+    createdAt,
+    updatedAt,
+  },
+  (t) => [
+    unique('uq_users_email').on(t.email),
+    unique('uq_users_nickname').on(t.nickname),
+  ],
+);
 
 export const sessions = pgTable(
   'sessions',
@@ -111,7 +118,7 @@ export const invitations = pgTable(
   'invitations',
   {
     id: bigserial('id', { mode: 'number' }).primaryKey(),
-    token: text('token').notNull().unique(),
+    token: text('token').notNull(),
     createdBy: bigint('created_by', { mode: 'number' })
       .notNull()
       .references(() => users.id, { onDelete: 'restrict' }),
@@ -124,6 +131,7 @@ export const invitations = pgTable(
     createdAt,
   },
   (t) => [
+    unique('uq_invitations_token').on(t.token),
     index('idx_invitations_active')
       .on(t.expiresAt)
       .where(sql`${t.usedBy} is null`),
@@ -208,6 +216,8 @@ export const predictionsGroupMatches = pgTable(
   },
   (t) => [
     unique('uq_pred_group_matches_user_match').on(t.userId, t.matchId),
+    index('idx_pred_group_matches_user_id').on(t.userId),
+    index('idx_pred_group_matches_match_id').on(t.matchId),
   ],
 );
 
@@ -237,6 +247,8 @@ export const predictionsGroupStandings = pgTable(
       t.groupLetter,
       t.teamCode,
     ),
+    index('idx_pred_group_standings_user_id').on(t.userId),
+    index('idx_pred_group_standings_group_letter').on(t.groupLetter),
     check(
       'chk_pred_group_standings_position',
       sql`${t.position} between 1 and 4`,
@@ -261,6 +273,7 @@ export const predictionsBestThirds = pgTable(
   (t) => [
     unique('uq_pred_best_thirds_user_position').on(t.userId, t.position),
     unique('uq_pred_best_thirds_user_team').on(t.userId, t.teamCode),
+    index('idx_pred_best_thirds_user_id').on(t.userId),
     check('chk_pred_best_thirds_position', sql`${t.position} between 1 and 8`),
   ],
 );
@@ -281,7 +294,11 @@ export const predictionsKnockout = pgTable(
     createdAt,
     updatedAt,
   },
-  (t) => [unique('uq_pred_knockout_user_match').on(t.userId, t.matchId)],
+  (t) => [
+    unique('uq_pred_knockout_user_match').on(t.userId, t.matchId),
+    index('idx_pred_knockout_user_id').on(t.userId),
+    index('idx_pred_knockout_match_id').on(t.matchId),
+  ],
 );
 
 export const predictionsAwards = pgTable(
@@ -299,7 +316,10 @@ export const predictionsAwards = pgTable(
     createdAt,
     updatedAt,
   },
-  (t) => [unique('uq_pred_awards_user_kind').on(t.userId, t.kind)],
+  (t) => [
+    unique('uq_pred_awards_user_kind').on(t.userId, t.kind),
+    index('idx_pred_awards_user_id').on(t.userId),
+  ],
 );
 
 // ===========================================================================
@@ -318,7 +338,10 @@ export const actualGroupStandings = pgTable(
     updatedAt,
   },
   (t) => [
-    primaryKey({ columns: [t.groupLetter, t.position] }),
+    primaryKey({
+      name: 'pk_actual_group_standings',
+      columns: [t.groupLetter, t.position],
+    }),
     check('chk_actual_group_standings_position', sql`${t.position} between 1 and 4`),
   ],
 );
@@ -365,16 +388,20 @@ export const scores = pgTable(
   (t) => [unique('uq_scores_user_category').on(t.userId, t.category)],
 );
 
-export const scoreRecalculations = pgTable('score_recalculations', {
-  id: bigserial('id', { mode: 'number' }).primaryKey(),
-  triggeredBy: bigint('triggered_by', { mode: 'number' })
-    .notNull()
-    .references(() => users.id, { onDelete: 'restrict' }),
-  reason: text('reason').notNull(),
-  affectedCategories: text('affected_categories').array().notNull(),
-  usersAffected: integer('users_affected').notNull(),
-  createdAt,
-});
+export const scoreRecalculations = pgTable(
+  'score_recalculations',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    triggeredBy: bigint('triggered_by', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    reason: text('reason').notNull(),
+    affectedCategories: text('affected_categories').array().notNull(),
+    usersAffected: integer('users_affected').notNull(),
+    createdAt,
+  },
+  (t) => [index('idx_score_recalculations_triggered_by').on(t.triggeredBy)],
+);
 
 // ===========================================================================
 // Relations (joins tipados — data-model.md §7)

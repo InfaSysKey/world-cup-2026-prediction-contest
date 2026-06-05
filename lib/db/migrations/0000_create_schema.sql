@@ -20,7 +20,7 @@ CREATE TABLE "actual_group_standings" (
 	"team_code" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "actual_group_standings_group_letter_position_pk" PRIMARY KEY("group_letter","position"),
+	CONSTRAINT "pk_actual_group_standings" PRIMARY KEY("group_letter","position"),
 	CONSTRAINT "chk_actual_group_standings_position" CHECK ("actual_group_standings"."position" between 1 and 4)
 );
 --> statement-breakpoint
@@ -33,7 +33,7 @@ CREATE TABLE "invitations" (
 	"expires_at" timestamp with time zone NOT NULL,
 	"note" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "invitations_token_unique" UNIQUE("token")
+	CONSTRAINT "uq_invitations_token" UNIQUE("token")
 );
 --> statement-breakpoint
 CREATE TABLE "matches" (
@@ -157,8 +157,8 @@ CREATE TABLE "users" (
 	"is_admin" boolean DEFAULT false NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "users_email_unique" UNIQUE("email"),
-	CONSTRAINT "users_nickname_unique" UNIQUE("nickname")
+	CONSTRAINT "uq_users_email" UNIQUE("email"),
+	CONSTRAINT "uq_users_nickname" UNIQUE("nickname")
 );
 --> statement-breakpoint
 ALTER TABLE "actual_awards" ADD CONSTRAINT "actual_awards_team_code_teams_code_fk" FOREIGN KEY ("team_code") REFERENCES "public"."teams"("code") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
@@ -188,23 +188,32 @@ CREATE INDEX "idx_matches_phase" ON "matches" USING btree ("phase");--> statemen
 CREATE INDEX "idx_matches_group_letter" ON "matches" USING btree ("group_letter");--> statement-breakpoint
 CREATE INDEX "idx_matches_scheduled_at" ON "matches" USING btree ("scheduled_at");--> statement-breakpoint
 CREATE INDEX "idx_matches_bracket_slot" ON "matches" USING btree ("bracket_slot");--> statement-breakpoint
+CREATE INDEX "idx_pred_awards_user_id" ON "predictions_awards" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "idx_pred_best_thirds_user_id" ON "predictions_best_thirds" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "idx_pred_group_matches_user_id" ON "predictions_group_matches" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "idx_pred_group_matches_match_id" ON "predictions_group_matches" USING btree ("match_id");--> statement-breakpoint
+CREATE INDEX "idx_pred_group_standings_user_id" ON "predictions_group_standings" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "idx_pred_group_standings_group_letter" ON "predictions_group_standings" USING btree ("group_letter");--> statement-breakpoint
+CREATE INDEX "idx_pred_knockout_user_id" ON "predictions_knockout" USING btree ("user_id");--> statement-breakpoint
+CREATE INDEX "idx_pred_knockout_match_id" ON "predictions_knockout" USING btree ("match_id");--> statement-breakpoint
+CREATE INDEX "idx_score_recalculations_triggered_by" ON "score_recalculations" USING btree ("triggered_by");--> statement-breakpoint
 CREATE INDEX "idx_sessions_user_id" ON "sessions" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "idx_sessions_expires_at" ON "sessions" USING btree ("expires_at");--> statement-breakpoint
 CREATE INDEX "idx_teams_group_letter" ON "teams" USING btree ("group_letter");
 
 -- ROLLBACK
--- DROP TABLE IF EXISTS "score_recalculations";
--- DROP TABLE IF EXISTS "scores";
--- DROP TABLE IF EXISTS "actual_awards";
--- DROP TABLE IF EXISTS "actual_best_thirds";
--- DROP TABLE IF EXISTS "actual_group_standings";
--- DROP TABLE IF EXISTS "predictions_awards";
--- DROP TABLE IF EXISTS "predictions_knockout";
--- DROP TABLE IF EXISTS "predictions_best_thirds";
--- DROP TABLE IF EXISTS "predictions_group_standings";
--- DROP TABLE IF EXISTS "predictions_group_matches";
--- DROP TABLE IF EXISTS "matches";
--- DROP TABLE IF EXISTS "teams";
--- DROP TABLE IF EXISTS "invitations";
--- DROP TABLE IF EXISTS "sessions";
--- DROP TABLE IF EXISTS "users";
+-- DROP TABLE IF EXISTS "score_recalculations" CASCADE;
+-- DROP TABLE IF EXISTS "scores" CASCADE;
+-- DROP TABLE IF EXISTS "actual_awards" CASCADE;
+-- DROP TABLE IF EXISTS "actual_best_thirds" CASCADE;
+-- DROP TABLE IF EXISTS "actual_group_standings" CASCADE;
+-- DROP TABLE IF EXISTS "predictions_awards" CASCADE;
+-- DROP TABLE IF EXISTS "predictions_knockout" CASCADE;
+-- DROP TABLE IF EXISTS "predictions_best_thirds" CASCADE;
+-- DROP TABLE IF EXISTS "predictions_group_standings" CASCADE;
+-- DROP TABLE IF EXISTS "predictions_group_matches" CASCADE;
+-- DROP TABLE IF EXISTS "matches" CASCADE;
+-- DROP TABLE IF EXISTS "teams" CASCADE;
+-- DROP TABLE IF EXISTS "invitations" CASCADE;
+-- DROP TABLE IF EXISTS "sessions" CASCADE;
+-- DROP TABLE IF EXISTS "users" CASCADE;

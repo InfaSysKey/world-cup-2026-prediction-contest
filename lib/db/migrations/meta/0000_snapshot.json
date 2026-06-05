@@ -1,5 +1,5 @@
 {
-  "id": "b1f52a1b-1119-4ecc-b1a6-c878c6ebd140",
+  "id": "afc16937-aa0e-44f3-b9ea-f47ff15a9a14",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -175,8 +175,8 @@
         }
       },
       "compositePrimaryKeys": {
-        "actual_group_standings_group_letter_position_pk": {
-          "name": "actual_group_standings_group_letter_position_pk",
+        "pk_actual_group_standings": {
+          "name": "pk_actual_group_standings",
           "columns": [
             "group_letter",
             "position"
@@ -295,8 +295,8 @@
       },
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "invitations_token_unique": {
-          "name": "invitations_token_unique",
+        "uq_invitations_token": {
+          "name": "uq_invitations_token",
           "nullsNotDistinct": false,
           "columns": [
             "token"
@@ -574,7 +574,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_pred_awards_user_id": {
+          "name": "idx_pred_awards_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "predictions_awards_user_id_users_id_fk": {
           "name": "predictions_awards_user_id_users_id_fk",
@@ -661,7 +677,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_pred_best_thirds_user_id": {
+          "name": "idx_pred_best_thirds_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "predictions_best_thirds_user_id_users_id_fk": {
           "name": "predictions_best_thirds_user_id_users_id_fk",
@@ -767,7 +799,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_pred_group_matches_user_id": {
+          "name": "idx_pred_group_matches_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_pred_group_matches_match_id": {
+          "name": "idx_pred_group_matches_match_id",
+          "columns": [
+            {
+              "expression": "match_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "predictions_group_matches_user_id_users_id_fk": {
           "name": "predictions_group_matches_user_id_users_id_fk",
@@ -860,7 +923,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_pred_group_standings_user_id": {
+          "name": "idx_pred_group_standings_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_pred_group_standings_group_letter": {
+          "name": "idx_pred_group_standings_group_letter",
+          "columns": [
+            {
+              "expression": "group_letter",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "predictions_group_standings_user_id_users_id_fk": {
           "name": "predictions_group_standings_user_id_users_id_fk",
@@ -962,7 +1056,38 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_pred_knockout_user_id": {
+          "name": "idx_pred_knockout_user_id",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "idx_pred_knockout_match_id": {
+          "name": "idx_pred_knockout_match_id",
+          "columns": [
+            {
+              "expression": "match_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "predictions_knockout_user_id_users_id_fk": {
           "name": "predictions_knockout_user_id_users_id_fk",
@@ -1061,7 +1186,23 @@
           "default": "now()"
         }
       },
-      "indexes": {},
+      "indexes": {
+        "idx_score_recalculations_triggered_by": {
+          "name": "idx_score_recalculations_triggered_by",
+          "columns": [
+            {
+              "expression": "triggered_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "score_recalculations_triggered_by_users_id_fk": {
           "name": "score_recalculations_triggered_by_users_id_fk",
@@ -1367,15 +1508,15 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {
-        "users_email_unique": {
-          "name": "users_email_unique",
+        "uq_users_email": {
+          "name": "uq_users_email",
           "nullsNotDistinct": false,
           "columns": [
             "email"
           ]
         },
-        "users_nickname_unique": {
-          "name": "users_nickname_unique",
+        "uq_users_nickname": {
+          "name": "uq_users_nickname",
           "nullsNotDistinct": false,
           "columns": [
             "nickname"

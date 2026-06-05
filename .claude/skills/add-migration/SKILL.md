@@ -122,6 +122,7 @@ Toda tabla, salvo excepciones documentadas en `data-model.md`:
 Excepciones aceptadas (ya en `data-model.md`):
 - `sessions`: sin `updated_at` (solo `expires_at`).
 - `teams`: sin `updated_at` (catálogo inmutable).
+- `scores`: sin `created_at`/`updated_at`; `calculated_at` cumple ambos papeles (tabla derivada que se _upserta_ en cada recálculo).
 
 ---
 
