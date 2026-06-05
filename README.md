@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Porra Mundial 2026
 
-## Getting Started
+App web privada para gestionar la porra del Mundial 2026 entre un grupo cerrado de amigos. Acceso por invitación, predicciones bloqueadas al pitido inicial, puntos automáticos.
 
-First, run the development server:
+## Stack
+
+- **Next.js 14** (App Router) + **TypeScript** estricto
+- **PostgreSQL 16** + **Drizzle ORM**
+- **Tailwind CSS** + **shadcn/ui**
+- **Podman** + **Caddy** (TLS automático)
+- Autenticación propia con cookie httpOnly + bcrypt
+
+## Documentación
+
+| Archivo | Para qué sirve |
+|---|---|
+| [`CLAUDE.md`](./CLAUDE.md) | Constitución del proyecto: convenciones, estructura, qué hacer y qué no |
+| [`docs/scoring-rules.md`](./docs/scoring-rules.md) | Reglas de la porra y sistema de puntos |
+| [`docs/data-model.md`](./docs/data-model.md) | Esquema de la base de datos |
+| [`docs/claude-code-playbook.md`](./docs/claude-code-playbook.md) | Cómo se usa Claude Code, Ultracode y workflows en este proyecto |
+| [`docs/slice-roadmap.md`](./docs/slice-roadmap.md) | Plan detallado por slice |
+| [`docs/getting-started.md`](./docs/getting-started.md) | Cómo levantar el proyecto desde cero |
+| [`docs/decisions/`](./docs/decisions/) | ADRs (decisiones arquitectónicas) |
+
+## Desarrollo local
 
 ```bash
+# Levantar Postgres
+cd infra && podman-compose up -d db
+
+# Aplicar migraciones y seed
+npm run db:migrate
+npm run db:seed
+
+# Crear admin inicial (una sola vez)
+npm run admin:bootstrap
+
+# Arrancar la app
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Detalle completo en [`docs/getting-started.md`](./docs/getting-started.md).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Estado
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Proyecto privado. No acepta colaboradores externos. Las invitaciones las genera el admin desde `/admin/invitaciones`.
 
-## Learn More
+## Licencia
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Sin licencia pública — uso interno del autor y su grupo de amigos.
