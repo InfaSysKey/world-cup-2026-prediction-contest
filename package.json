@@ -12,7 +12,8 @@
     "db:seed": "tsx lib/db/seed/index.ts",
     "admin:bootstrap": "tsx lib/db/seed/admin-bootstrap.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -21,7 +22,7 @@
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "^1.17.0",
-    "next": "^9.3.3",
+    "next": "^15.5.0",
     "pg": "^8.21.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
