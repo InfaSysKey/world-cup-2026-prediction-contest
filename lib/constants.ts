@@ -23,3 +23,19 @@ export const TEAMS_COUNT = 48;
 export const MATCHES_TOTAL = 104;
 export const MATCHES_GROUP_STAGE = 72;
 export const MATCHES_KNOCKOUT = 32;
+
+// --- Auth (CLAUDE.md §6, ADR 0002) ---
+
+// Cookie de sesión: nombre y duración.
+export const SESSION_COOKIE_NAME = 'porra_session';
+export const SESSION_DURATION_DAYS = 30;
+
+// Caducidad de los tokens de invitación.
+export const INVITATION_EXPIRY_DAYS = 7;
+
+// Bytes de entropía para tokens de sesión e invitación (base64url).
+export const AUTH_TOKEN_BYTES = 32;
+
+// Límites de longitud de contraseña. El máximo es el límite de bcrypt (72 bytes).
+export const PASSWORD_MIN_LENGTH = 8;
+export const PASSWORD_MAX_LENGTH = 72;
