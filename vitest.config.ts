@@ -17,6 +17,12 @@ export default defineConfig({
     // Entorno por defecto Node; los tests de componentes/hooks fijan jsdom con
     // el docblock `// @vitest-environment jsdom`.
     environment: 'node',
-    include: ['lib/**/*.test.ts', 'lib/**/*.test.tsx', 'components/**/*.test.tsx'],
+    include: [
+      'lib/**/*.test.ts',
+      'lib/**/*.test.tsx',
+      'components/**/*.test.tsx',
+      'app/**/*.test.ts',
+      'app/**/*.test.tsx',
+    ],
   },
 });

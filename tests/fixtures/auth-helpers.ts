@@ -1,16 +1,31 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+/**
+ * Helpers de autenticación reutilizables en los tests e2e.
+ * No modifican código de producción.
+ */
+import type { Browser, Page } from '@playwright/test';
 
 const ADMIN_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL ?? '';
 const ADMIN_PASSWORD = process.env.ADMIN_BOOTSTRAP_PASSWORD ?? '';
 
-async function login(page: Page, email: string, password: string): Promise<void> {
+export async function login(
+  page: Page,
+  email: string,
+  password: string,
+): Promise<void> {
   await page.goto('/login');
   await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', password);
   await page.click('button[type="submit"]');
 }
 
-async function adminGenerateInvitationUrl(browser: Browser): Promise<string> {
+export async function loginAsAdmin(page: Page): Promise<void> {
+  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
+  await page.waitForURL('**/porra');
+}
+
+export async function adminGenerateInvitationUrl(
+  browser: Browser,
+): Promise<string> {
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
@@ -22,11 +37,16 @@ async function adminGenerateInvitationUrl(browser: Browser): Promise<string> {
   return url;
 }
 
-function uniqueSuffix(): string {
+export function uniqueSuffix(): string {
   return `${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
-async function registerAndLand(browser: Browser): Promise<Page> {
+/**
+ * Registra un nuevo usuario a través del flujo de invitación y devuelve la
+ * página ya en /porra. El contexto del browser queda abierto para que el test
+ * pueda seguir interactuando.
+ */
+export async function registerAndLand(browser: Browser): Promise<Page> {
   const url = await adminGenerateInvitationUrl(browser);
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
@@ -42,26 +62,3 @@ async function registerAndLand(browser: Browser): Promise<Page> {
   await page.waitForURL('**/porra');
   return page;
 }
-
-test('rellenar un marcador dispara autosave y persiste tras recargar', async ({
-  browser,
-}) => {
-  const page = await registerAndLand(browser);
-
-  // El tab Grupos está activo por defecto.
-  await expect(page.getByTestId('group-matches-tab')).toBeVisible();
-
-  // El primer partido del catálogo (id 1) está en el grupo A.
-  await page.getByTestId('gm-local-1').fill('3');
-  await page.getByTestId('gm-visitante-1').fill('1');
-
-  // El autosave (debounce 800ms) acaba mostrando "Guardado".
-  await expect(page.getByTestId('autosave-status')).toHaveText('Guardado', {
-    timeout: 5000,
-  });
-
-  // Tras recargar, el server component devuelve los datos persistidos.
-  await page.reload();
-  await expect(page.getByTestId('gm-local-1')).toHaveValue('3');
-  await expect(page.getByTestId('gm-visitante-1')).toHaveValue('1');
-});
