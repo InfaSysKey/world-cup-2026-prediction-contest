@@ -5,6 +5,7 @@ import { useState } from 'react';
 import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
 import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
 import type { PodiumData } from '@/app/(porra)/porra/load-podium';
+import { podioCompletion } from '@/app/(porra)/porra/podio-completion';
 import { BestThirdsTab } from '@/components/porra/best-thirds-tab';
 import { GruposTab } from '@/components/porra/grupos-tab';
 import { PodioTab } from '@/components/porra/podio-tab';
@@ -18,7 +19,7 @@ import {
 import type { UserPredictions } from '@/lib/predictions/types';
 import type { PredictionLocks } from '@/lib/scoring/locks';
 
-type Completion = 'complete' | 'partial' | 'empty';
+type Completion = 'complete' | 'revisar' | 'partial' | 'empty';
 
 type PorraStepperProps = {
   initialData: UserPredictions;
@@ -30,12 +31,14 @@ type PorraStepperProps = {
 
 const completionColor: Record<Completion, string> = {
   complete: 'bg-green-500',
+  revisar: 'bg-orange-500',
   partial: 'bg-amber-400',
   empty: 'bg-zinc-300',
 };
 
 const completionLabel: Record<Completion, string> = {
   complete: 'completo',
+  revisar: 'revisar',
   partial: 'incompleto',
   empty: 'sin rellenar',
 };
@@ -77,18 +80,11 @@ export function PorraStepper({
       }
       return picked > 0 ? 'partial' : 'empty';
     }
-    if (tabId === 'palmares') {
+    if (tabId === 'podio') {
       // El tab Podio + Premios solo cubre el podio por ahora (sub-slice 4.6);
-      // los premios individuales llegan en 4.7. Completo = los 3 puestos.
-      const filled = [
-        podium.podium.champion,
-        podium.podium.runnerUp,
-        podium.podium.third,
-      ].filter(Boolean).length;
-      if (filled >= 3) {
-        return 'complete';
-      }
-      return filled > 0 ? 'partial' : 'empty';
+      // los premios individuales llegan en 4.7. La regla (incluida la prioridad
+      // de "revisar" sobre "completo") vive en podioCompletion, función pura.
+      return podioCompletion(podium.podium, podium.mismatches);
     }
     return 'empty';
   }
@@ -154,7 +150,7 @@ export function PorraStepper({
                   onGoToGroups={() => setActive('grupos')}
                 />
               </section>
-            ) : tab.id === 'palmares' ? (
+            ) : tab.id === 'podio' ? (
               <section data-testid={`porra-panel-${tab.id}`} className="p-2">
                 <PodioTab
                   teamsCatalog={groupTeamsCatalog}

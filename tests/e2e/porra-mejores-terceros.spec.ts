@@ -43,6 +43,7 @@ import type { Page } from '@playwright/test';
 import { expect, test } from '@playwright/test';
 
 import { registerAndLand } from '../fixtures/auth-helpers';
+import { waitForFreshSave } from '../fixtures/wait-helpers';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -51,42 +52,6 @@ import { registerAndLand } from '../fixtures/auth-helpers';
 async function gotoTab(page: Page, tabId: string): Promise<void> {
   await page.getByTestId(`porra-tab-${tabId}`).click();
   await expect(page.getByTestId(`porra-panel-${tabId}`)).toBeVisible();
-}
-
-/**
- * Espera a que el indicador de autosave complete UN NUEVO ciclo de guardado.
- * Distingue un save nuevo del estado "Guardado" residual de un save anterior.
- *
- * El problema: toHaveText('Guardado') matchea inmediatamente si la UI ya muestra
- * "Guardado" de un save previo, antes de que el debounce del nuevo save haya
- * disparado (AUTOSAVE_DEBOUNCE_MS = 800 ms).
- *
- * Solución: si el estado actual ya es "Guardado", esperamos a que cambie (a
- * "Guardando…" durante la SA o incluso a "Sin cambios" si el componente se
- * desmontó/remontó) y solo entonces esperamos el nuevo "Guardado".
- */
-async function waitForFreshSave(
-  page: Page,
-  testId: 'gs-autosave-status' | 'bt-autosave-status',
-): Promise<void> {
-  // Si el estado actual es "Guardado" (residual de save anterior), esperamos a
-  // que deje de serlo antes de continuar — así no confundimos el save viejo con
-  // el nuevo.
-  const currentText = await page.getByTestId(testId).textContent();
-  if (currentText?.trim() === 'Guardado') {
-    await page.waitForFunction(
-      (id: string) => {
-        const el = document.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-        return el !== null && el.textContent?.trim() !== 'Guardado';
-      },
-      testId,
-      { timeout: 4000 },
-    );
-  }
-  // Ahora esperamos el "Guardado" del nuevo ciclo de save.
-  await expect(page.getByTestId(testId)).toHaveText('Guardado', {
-    timeout: 6000,
-  });
 }
 
 /**

@@ -63,7 +63,7 @@ export const PORRA_TABS = [
   { id: 'semis', label: 'Semis' },
   { id: 'tercer-puesto', label: '3.º y 4.º' },
   { id: 'final', label: 'Final' },
-  { id: 'palmares', label: 'Podio + Premios' },
+  { id: 'podio', label: 'Podio + Premios' },
 ] as const;
 export type PorraTabId = (typeof PORRA_TABS)[number]['id'];
 

@@ -13,6 +13,7 @@ import {
   type PodiumDeduction,
 } from '@/lib/scoring/deduce-podium';
 import { isAwardsPredictionLocked } from '@/lib/scoring/locks';
+import { analyzePodiumBracketMismatch } from '@/lib/validators/cross-tab';
 
 // Los 3 puestos del podio guardados en BD (null = puesto vacío).
 export type PodiumState = {
@@ -21,13 +22,35 @@ export type PodiumState = {
   third: string | null;
 };
 
+// Por puesto: true si el valor guardado no coincide con el deducido del bracket.
+// Es la fuente de verdad que consume el stepper para decidir "revisar" sin
+// recalcular la lógica de desincronización (cross-tab.ts).
+export type PodiumMismatches = {
+  champion: boolean;
+  runnerUp: boolean;
+  third: boolean;
+};
+
 export type PodiumData = {
   // Valores actuales en BD (tras el posible prefill inicial).
   podium: PodiumState;
   // Sugerencia derivada del bracket, para las líneas de ayuda y los avisos de
   // desincronización en el tab.
   deduction: PodiumDeduction;
+  // Mapa de desincronización podio↔bracket calculado server-side.
+  mismatches: PodiumMismatches;
 };
+
+function toMismatches(podium: PodiumState, deduction: PodiumDeduction): PodiumMismatches {
+  const byKind = new Set(
+    analyzePodiumBracketMismatch(podium, deduction).map((m) => m.kind),
+  );
+  return {
+    champion: byKind.has('champion'),
+    runnerUp: byKind.has('runnerUp'),
+    third: byKind.has('third'),
+  };
+}
 
 const PODIUM_KINDS = ['champion', 'runner_up', 'third'] as const;
 
@@ -93,8 +116,10 @@ export async function loadPodium(userId: number): Promise<PodiumData> {
         target: [predictionsAwards.userId, predictionsAwards.kind],
       });
 
-    return { podium: toState(inserts), deduction };
+    const podium = toState(inserts);
+    return { podium, deduction, mismatches: toMismatches(podium, deduction) };
   }
 
-  return { podium: toState(podiumRows), deduction };
+  const podium = toState(podiumRows);
+  return { podium, deduction, mismatches: toMismatches(podium, deduction) };
 }

@@ -43,22 +43,35 @@ export function uniqueSuffix(): string {
 
 /**
  * Registra un nuevo usuario a través del flujo de invitación y devuelve la
- * página ya en /porra. El contexto del browser queda abierto para que el test
- * pueda seguir interactuando.
+ * página ya en /porra junto con el email usado (clave para localizar al usuario
+ * en BD desde fixtures de semilla). El contexto del browser queda abierto para
+ * que el test pueda seguir interactuando.
  */
-export async function registerAndLand(browser: Browser): Promise<Page> {
+export async function registerAndLandIdentity(
+  browser: Browser,
+): Promise<{ page: Page; email: string }> {
   const url = await adminGenerateInvitationUrl(browser);
   const ctx = await browser.newContext();
   const page = await ctx.newPage();
   const suffix = uniqueSuffix();
+  const email = `e2e_${suffix}@test.dev`;
 
   await page.goto(new URL(url).pathname + new URL(url).search);
   await page.fill('input[name="nombre"]', 'E2E');
   await page.fill('input[name="apellidos"]', 'Grupos');
   await page.fill('input[name="nickname"]', `e2e_${suffix}`);
-  await page.fill('input[name="email"]', `e2e_${suffix}@test.dev`);
+  await page.fill('input[name="email"]', email);
   await page.fill('input[name="password"]', 'password123');
   await page.getByRole('button', { name: /crear/i }).click();
   await page.waitForURL('**/porra');
+  return { page, email };
+}
+
+/**
+ * Igual que registerAndLandIdentity pero devolviendo solo la página, que es lo
+ * que necesita la mayoría de los tests.
+ */
+export async function registerAndLand(browser: Browser): Promise<Page> {
+  const { page } = await registerAndLandIdentity(browser);
   return page;
 }

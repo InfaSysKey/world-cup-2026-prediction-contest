@@ -66,6 +66,37 @@ describe('deducePodium', () => {
       third: 'POR',
     });
   });
+
+  it('solo final sin semis → solo champion, runnerUp null, third null', () => {
+    // El usuario predijo el ganador de la final pero no las semis.
+    // No se puede deducir subcampeón (no sabemos quiénes eran los finalistas).
+    const picks: KnockoutPick[] = [{ phase: 'final', winnerTeamCode: 'BRA' }];
+    expect(deducePodium(picks)).toEqual({
+      champion: 'BRA',
+      runnerUp: null,
+      third: null,
+    });
+  });
+
+  it('bracket incoherente (campeón no es ganador de ninguna semi) → champion se prefilla igualmente, runnerUp null', () => {
+    // Documenta el comportamiento real: deducePodium NO valida coherencia
+    // entre fases. El campeón se deduce del partido 'final' sin comprobaciones
+    // adicionales. runnerUp queda null porque el champion (BRA) no figura entre
+    // los winners de semi (ESP, FRA) — véase la condición
+    //   semiWinners.includes(champion)
+    // en deduce-podium.ts.
+    // scoring-rules.md §2.6 no prohíbe este input; el formulario de bracket
+    // permite al usuario elegir libremente (el bracket es rígido, sin recolocación).
+    const picks: KnockoutPick[] = [
+      { phase: 'semi', winnerTeamCode: 'ESP' },
+      { phase: 'semi', winnerTeamCode: 'FRA' },
+      { phase: 'final', winnerTeamCode: 'BRA' }, // no es ninguna de las dos semis
+    ];
+    const result = deducePodium(picks);
+    expect(result.champion).toBe('BRA');  // se prefilla igual
+    expect(result.runnerUp).toBeNull();   // no se puede deducir
+    expect(result.third).toBeNull();
+  });
 });
 
 describe('hasAnyDeduction', () => {

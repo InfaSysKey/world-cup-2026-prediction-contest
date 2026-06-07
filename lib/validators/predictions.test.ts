@@ -206,6 +206,48 @@ describe('bestThirdsBatchSchema', () => {
   });
 });
 
+// --- Cobertura cross-slice preparatoria para 4.7 (boot_*/ball_*) ---
+// Verifica que podiumPredictionSchema NO rechaza ni interfiere con los kinds de
+// premios individuales: son objetos distintos que caerán en un schema separado
+// en el mismo archivo (data-model.md §4.5). La colisión se detectaría si el
+// validator del podio empezase a aceptar o a confundir esos kinds.
+describe('podiumPredictionSchema — no colisión con kinds de premios de 4.7', () => {
+  const AWARD_KINDS = [
+    'boot_gold',
+    'boot_silver',
+    'boot_bronze',
+    'ball_gold',
+    'ball_silver',
+    'ball_bronze',
+  ] as const;
+
+  for (const kind of AWARD_KINDS) {
+    it(`rechaza un objeto con clave '${kind}' en lugar de champion/runnerUp/third`, () => {
+      // Un objeto con keys de premios individuales no cumple la forma del podio.
+      const r = podiumPredictionSchema.safeParse({
+        [kind]: 'ESP',
+        runnerUp: null,
+        third: null,
+      });
+      // 'champion' falta → schema lo rechaza por clave ausente.
+      expect(r.success).toBe(false);
+    });
+  }
+
+  it('acepta un podio completo con los 3 puestos sin confundirse con los kinds de premios', () => {
+    const r = podiumPredictionSchema.safeParse({
+      champion: 'ESP',
+      runnerUp: 'FRA',
+      third: 'POR',
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      // El resultado parseado solo tiene las 3 claves del podio, no keys extra.
+      expect(Object.keys(r.data)).toEqual(['champion', 'runnerUp', 'third']);
+    }
+  });
+});
+
 describe('podiumPredictionSchema', () => {
   it('acepta los 3 puestos distintos', () => {
     const r = podiumPredictionSchema.safeParse({

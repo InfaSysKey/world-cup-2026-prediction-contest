@@ -25,6 +25,15 @@ const FIELDS: FieldConfig[] = [
   { key: 'third', medal: '🥉', label: '3.º puesto', source: '3-4' },
 ];
 
+// Texto de ayuda cuando aún no hay datos de bracket suficientes para deducir el
+// puesto. Explica QUÉ falta predecir (el subcampeón necesita las 2 semis Y la
+// final, no solo la final).
+const NO_DEDUCTION_HINT: Record<PodiumKey, string> = {
+  champion: 'Necesitas predecir la final para deducir el campeón',
+  runnerUp: 'Necesitas predecir las 2 semifinales y la final para deducir el subcampeón',
+  third: 'Necesitas predecir el partido por el 3.º puesto para deducir el 3.º',
+};
+
 type PodioTabProps = {
   teamsCatalog: GroupTeamsCatalog[];
   podium: PodiumState;
@@ -103,11 +112,11 @@ export function PodioTab({
 
   function hintText(field: FieldConfig): string {
     const suggested = deduction[field.key];
-    const sourceLabel = field.source === 'final' ? 'la final' : 'la 3-4';
     if (suggested) {
+      const sourceLabel = field.source === 'final' ? 'la final' : 'la 3-4';
       return `Sugerido desde tu predicción de ${sourceLabel}: ${teamLabel.get(suggested) ?? suggested}`;
     }
-    return `Sin predicción de ${sourceLabel} todavía`;
+    return NO_DEDUCTION_HINT[field.key];
   }
 
   return (
