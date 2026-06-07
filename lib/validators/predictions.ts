@@ -121,3 +121,32 @@ export const bestThirdsBatchSchema = z
     }
   });
 export type BestThirdsBatchInput = z.infer<typeof bestThirdsBatchSchema>;
+
+// --- Podio (predictions_awards, kinds champion/runner_up/third) ---
+
+// El podio se guarda como un único objeto con los 3 puestos para validar la
+// regla "los 3 equipos distintos" de forma atómica (scoring-rules.md §2.6,
+// data-model.md §4.5). Cada puesto es nullable: el guardado parcial está
+// permitido (el usuario puede tener solo el campeón deducido del bracket). La
+// existencia del team_code en `teams` se comprueba en la Server Action.
+// Este archivo lo amplía también la sub-slice 4.7 (premios boot_*/ball_*).
+const podiumTeam = teamCode.nullable();
+
+export const podiumPredictionSchema = z
+  .object({
+    champion: podiumTeam,
+    runnerUp: podiumTeam,
+    third: podiumTeam,
+  })
+  .superRefine((p, ctx) => {
+    const filled = [p.champion, p.runnerUp, p.third].filter(
+      (c): c is string => c !== null,
+    );
+    if (new Set(filled).size !== filled.length) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Cada posición del podio debe ser un equipo diferente.',
+      });
+    }
+  });
+export type PodiumPredictionInput = z.infer<typeof podiumPredictionSchema>;

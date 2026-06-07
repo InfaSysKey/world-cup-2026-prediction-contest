@@ -1,12 +1,13 @@
 'use server';
 
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentUser } from '@/lib/auth/current-user';
 import {
   db,
   matches,
+  predictionsAwards,
   predictionsBestThirds,
   predictionsGroupMatches,
   predictionsGroupStandings,
@@ -14,6 +15,7 @@ import {
 } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import {
+  isAwardsPredictionLocked,
   isBestThirdsLocked,
   isGroupMatchPredictionLocked,
   isGroupStandingsLocked,
@@ -23,6 +25,7 @@ import {
   bestThirdsBatchSchema,
   groupMatchPredictionsBatchSchema,
   groupStandingsBatchSchema,
+  podiumPredictionSchema,
 } from '@/lib/validators/predictions';
 
 // Server Actions del formulario de porra. Una acción por categoría de predicción.
@@ -163,6 +166,91 @@ export async function saveBestThirdsPrediction(
 
   revalidatePath('/porra');
   return { data: { saved: parsed.data.length } };
+}
+
+// --- Podio (predictions_awards, kinds champion/runner_up/third) ---
+
+// Los 3 puestos se guardan en una sola acción para validar atómicamente la
+// regla "los 3 equipos distintos". Un puesto null borra esa fila; un puesto con
+// equipo se upserta sobre (user_id, kind). Los premios individuales (botas y
+// balones) los gestionará otra acción en la sub-slice 4.7.
+export async function savePodiumPrediction(
+  input: unknown,
+): Promise<ApiResult<{ saved: number }>> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: { code: 'UNAUTHENTICATED', message: 'Sesión requerida.' } };
+  }
+
+  if (isAwardsPredictionLocked()) {
+    return {
+      error: { code: 'LOCKED', message: 'Las predicciones ya están bloqueadas.' },
+    };
+  }
+
+  const parsed = podiumPredictionSchema.safeParse(input);
+  if (!parsed.success) {
+    const distinct = parsed.error.issues.find(
+      (i) => i.message === 'Cada posición del podio debe ser un equipo diferente.',
+    );
+    return {
+      error: {
+        code: 'INVALID_INPUT',
+        message: distinct ? distinct.message : 'Datos inválidos.',
+      },
+    };
+  }
+
+  const entries = [
+    { kind: 'champion' as const, teamCode: parsed.data.champion },
+    { kind: 'runner_up' as const, teamCode: parsed.data.runnerUp },
+    { kind: 'third' as const, teamCode: parsed.data.third },
+  ];
+  const filled = entries.filter(
+    (e): e is { kind: typeof e.kind; teamCode: string } => e.teamCode !== null,
+  );
+  const emptyKinds = entries.filter((e) => e.teamCode === null).map((e) => e.kind);
+
+  // Cada equipo seleccionado debe existir en el catálogo (data-model.md §4.5).
+  if (filled.length > 0) {
+    const teamRows = await db.select({ code: teams.code }).from(teams);
+    const knownCodes = new Set(teamRows.map((t) => t.code));
+    if (!filled.every((e) => knownCodes.has(e.teamCode))) {
+      return {
+        error: { code: 'INVALID_INPUT', message: 'Algún equipo no existe.' },
+      };
+    }
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      for (const e of filled) {
+        await tx
+          .insert(predictionsAwards)
+          .values({ userId: user.id, kind: e.kind, teamCode: e.teamCode })
+          .onConflictDoUpdate({
+            target: [predictionsAwards.userId, predictionsAwards.kind],
+            set: { teamCode: e.teamCode, updatedAt: new Date() },
+          });
+      }
+      if (emptyKinds.length > 0) {
+        await tx
+          .delete(predictionsAwards)
+          .where(
+            and(
+              eq(predictionsAwards.userId, user.id),
+              inArray(predictionsAwards.kind, emptyKinds),
+            ),
+          );
+      }
+    });
+  } catch (err) {
+    logger.error('savePodiumPrediction failed', { err, userId: user.id });
+    return internalError();
+  }
+
+  revalidatePath('/porra');
+  return { data: { saved: filled.length } };
 }
 
 // --- Orden de cada grupo (predictions_group_standings) ---

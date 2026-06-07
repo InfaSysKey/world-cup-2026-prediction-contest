@@ -5,6 +5,7 @@ import type { User } from '@/lib/db';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { db } from '@/lib/db';
 import {
+  isAwardsPredictionLocked,
   isBestThirdsLocked,
   isGroupMatchPredictionLocked,
   isGroupStandingsLocked,
@@ -14,6 +15,7 @@ import {
   saveBestThirdsPrediction,
   saveGroupMatchPredictions,
   saveGroupStandings,
+  savePodiumPrediction,
 } from './actions';
 
 // La cadena variable-de-entorno → UI del estado bloqueado ya la cubre el e2e
@@ -26,6 +28,7 @@ vi.mock('@/lib/scoring/locks', () => ({
   isGroupMatchPredictionLocked: vi.fn(),
   isGroupStandingsLocked: vi.fn(),
   isBestThirdsLocked: vi.fn(),
+  isAwardsPredictionLocked: vi.fn(),
 }));
 vi.mock('@/lib/db', () => ({
   db: { transaction: vi.fn(), select: vi.fn() },
@@ -33,6 +36,7 @@ vi.mock('@/lib/db', () => ({
   predictionsGroupMatches: {},
   predictionsGroupStandings: {},
   predictionsBestThirds: {},
+  predictionsAwards: {},
   teams: {},
 }));
 vi.mock('@/lib/logger', () => ({ logger: { error: vi.fn(), info: vi.fn() } }));
@@ -208,6 +212,83 @@ describe('saveBestThirdsPrediction', () => {
     const result = await saveBestThirdsPrediction(VALID_BEST_THIRDS);
 
     expect(result).toEqual({ data: { saved: 2 } });
+    expect(db.transaction).toHaveBeenCalledTimes(1);
+  });
+});
+
+const VALID_PODIUM = { champion: 'ESP', runnerUp: 'FRA', third: 'POR' };
+
+describe('savePodiumPrediction', () => {
+  it('rechaza con LOCKED cuando la porra está bloqueada, sin tocar la BD', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(FAKE_USER);
+    vi.mocked(isAwardsPredictionLocked).mockReturnValue(true);
+
+    const result = await savePodiumPrediction(VALID_PODIUM);
+
+    expect(result).toEqual({
+      error: { code: 'LOCKED', message: 'Las predicciones ya están bloqueadas.' },
+    });
+    expect(db.transaction).not.toHaveBeenCalled();
+    expect(db.select).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con UNAUTHENTICATED si no hay sesión, sin comprobar el lock', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+
+    const result = await savePodiumPrediction(VALID_PODIUM);
+
+    expect(result).toEqual({
+      error: { code: 'UNAUTHENTICATED', message: 'Sesión requerida.' },
+    });
+    expect(isAwardsPredictionLocked).not.toHaveBeenCalled();
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con INVALID_INPUT y mensaje específico si hay equipos repetidos', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(FAKE_USER);
+    vi.mocked(isAwardsPredictionLocked).mockReturnValue(false);
+
+    const result = await savePodiumPrediction({
+      champion: 'ESP',
+      runnerUp: 'ESP',
+      third: 'POR',
+    });
+
+    expect(result).toEqual({
+      error: {
+        code: 'INVALID_INPUT',
+        message: 'Cada posición del podio debe ser un equipo diferente.',
+      },
+    });
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con INVALID_INPUT si un equipo no existe en el catálogo', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(FAKE_USER);
+    vi.mocked(isAwardsPredictionLocked).mockReturnValue(false);
+    mockTeamCodes(['ESP', 'FRA']); // POR no existe
+
+    const result = await savePodiumPrediction(VALID_PODIUM);
+
+    expect(result).toEqual({
+      error: { code: 'INVALID_INPUT', message: 'Algún equipo no existe.' },
+    });
+    expect(db.transaction).not.toHaveBeenCalled();
+  });
+
+  it('guarda un podio parcial válido (solo campeón) en transacción', async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(FAKE_USER);
+    vi.mocked(isAwardsPredictionLocked).mockReturnValue(false);
+    mockTeamCodes(['ESP', 'FRA', 'POR']);
+    vi.mocked(db.transaction).mockResolvedValue(undefined as never);
+
+    const result = await savePodiumPrediction({
+      champion: 'ESP',
+      runnerUp: null,
+      third: null,
+    });
+
+    expect(result).toEqual({ data: { saved: 1 } });
     expect(db.transaction).toHaveBeenCalledTimes(1);
   });
 });

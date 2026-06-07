@@ -4,8 +4,10 @@ import { useState } from 'react';
 
 import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
 import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
+import type { PodiumData } from '@/app/(porra)/porra/load-podium';
 import { BestThirdsTab } from '@/components/porra/best-thirds-tab';
 import { GruposTab } from '@/components/porra/grupos-tab';
+import { PodioTab } from '@/components/porra/podio-tab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BEST_THIRDS_COUNT,
@@ -23,6 +25,7 @@ type PorraStepperProps = {
   locks: PredictionLocks;
   groupMatchesCatalog: GroupCatalog[];
   groupTeamsCatalog: GroupTeamsCatalog[];
+  podium: PodiumData;
 };
 
 const completionColor: Record<Completion, string> = {
@@ -44,6 +47,7 @@ export function PorraStepper({
   locks,
   groupMatchesCatalog,
   groupTeamsCatalog,
+  podium,
 }: PorraStepperProps) {
   const [active, setActive] = useState<string>(PORRA_TABS[0].id);
 
@@ -72,6 +76,19 @@ export function PorraStepper({
         return 'complete';
       }
       return picked > 0 ? 'partial' : 'empty';
+    }
+    if (tabId === 'palmares') {
+      // El tab Podio + Premios solo cubre el podio por ahora (sub-slice 4.6);
+      // los premios individuales llegan en 4.7. Completo = los 3 puestos.
+      const filled = [
+        podium.podium.champion,
+        podium.podium.runnerUp,
+        podium.podium.third,
+      ].filter(Boolean).length;
+      if (filled >= 3) {
+        return 'complete';
+      }
+      return filled > 0 ? 'partial' : 'empty';
     }
     return 'empty';
   }
@@ -135,6 +152,15 @@ export function PorraStepper({
                   initial={initialData.bestThirds}
                   locked={locks.bestThirds}
                   onGoToGroups={() => setActive('grupos')}
+                />
+              </section>
+            ) : tab.id === 'palmares' ? (
+              <section data-testid={`porra-panel-${tab.id}`} className="p-2">
+                <PodioTab
+                  teamsCatalog={groupTeamsCatalog}
+                  podium={podium.podium}
+                  deduction={podium.deduction}
+                  locked={locks.awards}
                 />
               </section>
             ) : (

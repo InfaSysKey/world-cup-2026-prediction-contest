@@ -34,7 +34,9 @@ export function isKnockoutLocked(now?: Date): boolean {
   return isGlobalPredictionLocked(now);
 }
 
-export function isAwardsLocked(now?: Date): boolean {
+// Cuadro de honor y premios: bloqueo al pitido inicial de la final
+// (scoring-rules.md §5). En el MVP delega en el bloqueo global como el resto.
+export function isAwardsPredictionLocked(now?: Date): boolean {
   return isGlobalPredictionLocked(now);
 }
 
@@ -54,6 +56,6 @@ export function loadAllLocks(now: Date = new Date()): PredictionLocks {
     groupStandings: isGroupStandingsLocked(now),
     bestThirds: isBestThirdsLocked(now),
     knockout: isKnockoutLocked(now),
-    awards: isAwardsLocked(now),
+    awards: isAwardsPredictionLocked(now),
   };
 }

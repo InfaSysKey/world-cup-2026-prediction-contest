@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   analyzeBestThirdsStale,
+  analyzePodiumBracketMismatch,
   checkBestThirdsCoherence,
 } from './cross-tab';
 
@@ -86,5 +87,37 @@ describe('analyzeBestThirdsStale', () => {
 
   it('no peta con listas vacías', () => {
     expect(analyzeBestThirdsStale([], [], new Map())).toEqual([]);
+  });
+});
+
+describe('analyzePodiumBracketMismatch', () => {
+  it('no emite nada si el podio coincide con el bracket', () => {
+    const saved = { champion: 'ESP', runnerUp: 'FRA', third: 'POR' };
+    expect(analyzePodiumBracketMismatch(saved, saved)).toEqual([]);
+  });
+
+  it('emite un mismatch por cada puesto que difiere del bracket', () => {
+    const out = analyzePodiumBracketMismatch(
+      { champion: 'BRA', runnerUp: 'FRA', third: 'POR' },
+      { champion: 'ESP', runnerUp: 'FRA', third: 'POR' },
+    );
+    expect(out).toEqual([{ kind: 'champion', saved: 'BRA', expected: 'ESP' }]);
+  });
+
+  it('marca como mismatch un puesto vacío cuando el bracket sí lo deduce', () => {
+    const out = analyzePodiumBracketMismatch(
+      { champion: null, runnerUp: null, third: null },
+      { champion: 'ESP', runnerUp: 'FRA', third: 'POR' },
+    );
+    expect(out).toHaveLength(3);
+    expect(out.map((m) => m.kind)).toEqual(['champion', 'runnerUp', 'third']);
+  });
+
+  it('ignora los puestos que el bracket no puede deducir (deducción null)', () => {
+    const out = analyzePodiumBracketMismatch(
+      { champion: 'BRA', runnerUp: 'FRA', third: 'POR' },
+      { champion: 'ESP', runnerUp: null, third: null },
+    );
+    expect(out).toEqual([{ kind: 'champion', saved: 'BRA', expected: 'ESP' }]);
   });
 });

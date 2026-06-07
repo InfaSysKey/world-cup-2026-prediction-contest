@@ -92,3 +92,47 @@ export function analyzeBestThirdsStale(
   }
   return stale;
 }
+
+// --- Podio vs bracket (scoring-rules.md §2.6, skill add-prediction-type) ---
+
+// El podio guardado puede desincronizarse del bracket: el usuario guardó un
+// campeón y luego cambió el ganador de la final, o editó el podio a mano. Para
+// cada puesto comparamos el valor guardado con el deducido del bracket. Si
+// difieren (y el bracket SÍ tiene una deducción para ese puesto), es un warning
+// con sugerencia de sincronización. No bloquea el guardado: el podio es una
+// predicción explícita y la fuente de verdad es su propia fila en BD.
+
+export type PodiumKind = 'champion' | 'runnerUp' | 'third';
+
+export type PodiumMismatch = {
+  kind: PodiumKind;
+  // Valor guardado en el podio (puede ser null si el puesto está vacío).
+  saved: string | null;
+  // Valor que deduce el bracket para ese puesto (nunca null en un mismatch).
+  expected: string;
+};
+
+type PodiumState = {
+  champion: string | null;
+  runnerUp: string | null;
+  third: string | null;
+};
+
+export function analyzePodiumBracketMismatch(
+  saved: PodiumState,
+  deduction: PodiumState,
+): PodiumMismatch[] {
+  const kinds: PodiumKind[] = ['champion', 'runnerUp', 'third'];
+  const out: PodiumMismatch[] = [];
+  for (const kind of kinds) {
+    const expected = deduction[kind];
+    // Sin deducción para ese puesto no hay nada con qué comparar.
+    if (expected === null) {
+      continue;
+    }
+    if (saved[kind] !== expected) {
+      out.push({ kind, saved: saved[kind], expected });
+    }
+  }
+  return out;
+}

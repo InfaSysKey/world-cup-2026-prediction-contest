@@ -6,6 +6,7 @@ import {
   groupMatchPredictionsBatchSchema,
   groupStandingPredictionSchema,
   groupStandingsBatchSchema,
+  podiumPredictionSchema,
 } from './predictions';
 
 describe('groupMatchPredictionSchema', () => {
@@ -201,6 +202,58 @@ describe('bestThirdsBatchSchema', () => {
     const r = bestThirdsBatchSchema.safeParse([
       { position: 1, teamCode: 'mexico' },
     ]);
+    expect(r.success).toBe(false);
+  });
+});
+
+describe('podiumPredictionSchema', () => {
+  it('acepta los 3 puestos distintos', () => {
+    const r = podiumPredictionSchema.safeParse({
+      champion: 'ESP',
+      runnerUp: 'FRA',
+      third: 'POR',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('acepta un podio parcial con nulls', () => {
+    const r = podiumPredictionSchema.safeParse({
+      champion: 'ESP',
+      runnerUp: null,
+      third: null,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rechaza dos puestos con el mismo equipo', () => {
+    const r = podiumPredictionSchema.safeParse({
+      champion: 'ESP',
+      runnerUp: 'ESP',
+      third: 'POR',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('no considera duplicados los nulls (dos puestos vacíos)', () => {
+    const r = podiumPredictionSchema.safeParse({
+      champion: 'ESP',
+      runnerUp: null,
+      third: null,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rechaza un teamCode con formato inválido', () => {
+    const r = podiumPredictionSchema.safeParse({
+      champion: 'espana',
+      runnerUp: null,
+      third: null,
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza si falta una clave', () => {
+    const r = podiumPredictionSchema.safeParse({ champion: 'ESP', third: 'POR' });
     expect(r.success).toBe(false);
   });
 });
