@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { MATCHES_GROUP_STAGE, MAX_GOLES } from '@/lib/constants';
+import { GROUP_LETTERS, MATCHES_GROUP_STAGE, MAX_GOLES } from '@/lib/constants';
 
 // Validadores Zod de las predicciones del formulario de porra.
 //
@@ -32,4 +32,53 @@ export const groupMatchPredictionsBatchSchema = z.array(
 );
 export type GroupMatchPredictionsBatchInput = z.infer<
   typeof groupMatchPredictionsBatchSchema
+>;
+
+// --- Orden de cada grupo (predictions_group_standings) ---
+
+// Code ISO-3166 alpha-3 en mayúsculas (data-model.md §3.1). No validamos aquí
+// la pertenencia del equipo al grupo: eso exige consultar `teams` y se hace en
+// la Server Action.
+const teamCode = z
+  .string()
+  .regex(/^[A-Z]{3}$/, 'Código de equipo inválido.');
+
+export const groupStandingPredictionSchema = z.object({
+  groupLetter: z.enum([...GROUP_LETTERS]),
+  position: z.number().int().min(1).max(4),
+  teamCode,
+});
+export type GroupStandingPredictionInput = z.infer<
+  typeof groupStandingPredictionSchema
+>;
+
+// El batch puede traer uno o varios grupos. Dentro de cada grupo, ni la posición
+// ni el equipo pueden repetirse (data-model.md §4.2: UNIQUE (user,grupo,pos) y
+// UNIQUE (user,grupo,equipo)).
+export const groupStandingsBatchSchema = z
+  .array(groupStandingPredictionSchema)
+  .superRefine((entries, ctx) => {
+    const seenPosition = new Set<string>();
+    const seenTeam = new Set<string>();
+    for (const e of entries) {
+      const posKey = `${e.groupLetter}:${e.position}`;
+      const teamKey = `${e.groupLetter}:${e.teamCode}`;
+      if (seenPosition.has(posKey)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Posición ${e.position} repetida en el grupo ${e.groupLetter}.`,
+        });
+      }
+      if (seenTeam.has(teamKey)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Equipo repetido en el grupo ${e.groupLetter}.`,
+        });
+      }
+      seenPosition.add(posKey);
+      seenTeam.add(teamKey);
+    }
+  });
+export type GroupStandingsBatchInput = z.infer<
+  typeof groupStandingsBatchSchema
 >;

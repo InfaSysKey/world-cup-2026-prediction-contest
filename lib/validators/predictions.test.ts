@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 import {
   groupMatchPredictionSchema,
   groupMatchPredictionsBatchSchema,
+  groupStandingPredictionSchema,
+  groupStandingsBatchSchema,
 } from './predictions';
 
 describe('groupMatchPredictionSchema', () => {
@@ -72,5 +74,79 @@ describe('groupMatchPredictionsBatchSchema', () => {
       { matchId: 2, golesLocal: -1, golesVisitante: 2 },
     ]);
     expect(r.success).toBe(false);
+  });
+});
+
+describe('groupStandingPredictionSchema', () => {
+  it('acepta una posición válida', () => {
+    const r = groupStandingPredictionSchema.safeParse({
+      groupLetter: 'A',
+      position: 1,
+      teamCode: 'MEX',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rechaza una letra de grupo inexistente', () => {
+    const r = groupStandingPredictionSchema.safeParse({
+      groupLetter: 'Z',
+      position: 1,
+      teamCode: 'MEX',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza posición fuera de rango', () => {
+    const r = groupStandingPredictionSchema.safeParse({
+      groupLetter: 'A',
+      position: 5,
+      teamCode: 'MEX',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza un code de equipo con formato inválido', () => {
+    const r = groupStandingPredictionSchema.safeParse({
+      groupLetter: 'A',
+      position: 1,
+      teamCode: 'mexico',
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe('groupStandingsBatchSchema', () => {
+  it('acepta un grupo completo y bien ordenado', () => {
+    const r = groupStandingsBatchSchema.safeParse([
+      { groupLetter: 'A', position: 1, teamCode: 'MEX' },
+      { groupLetter: 'A', position: 2, teamCode: 'CAN' },
+      { groupLetter: 'A', position: 3, teamCode: 'USA' },
+      { groupLetter: 'A', position: 4, teamCode: 'RSA' },
+    ]);
+    expect(r.success).toBe(true);
+  });
+
+  it('rechaza una posición repetida dentro del mismo grupo', () => {
+    const r = groupStandingsBatchSchema.safeParse([
+      { groupLetter: 'A', position: 1, teamCode: 'MEX' },
+      { groupLetter: 'A', position: 1, teamCode: 'CAN' },
+    ]);
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza el mismo equipo en dos posiciones del mismo grupo', () => {
+    const r = groupStandingsBatchSchema.safeParse([
+      { groupLetter: 'A', position: 1, teamCode: 'MEX' },
+      { groupLetter: 'A', position: 2, teamCode: 'MEX' },
+    ]);
+    expect(r.success).toBe(false);
+  });
+
+  it('permite la misma posición en grupos distintos', () => {
+    const r = groupStandingsBatchSchema.safeParse([
+      { groupLetter: 'A', position: 1, teamCode: 'MEX' },
+      { groupLetter: 'B', position: 1, teamCode: 'ESP' },
+    ]);
+    expect(r.success).toBe(true);
   });
 });
