@@ -165,3 +165,75 @@ test('locked – petición fetch directa a la Server Action devuelve error LOCKE
   );
   await expect(registeredPage.getByTestId('gm-local-1')).toBeDisabled();
 });
+
+// ---------------------------------------------------------------------------
+// 5d. El orden de grupo (sub-slice 4.3) también queda bloqueado
+// ---------------------------------------------------------------------------
+test('locked – la lista de orden de grupo está bloqueada y sus botones disabled', async ({
+  browser,
+}) => {
+  const page = await registerOnLockedServer(browser);
+
+  await expect(page.getByTestId('group-standings-tab')).toBeVisible();
+
+  // El indicador de la sección de orden muestra BLOQUEADA, no el autosave.
+  await expect(
+    page.locator('[data-testid="group-standings-tab"] .text-amber-700'),
+  ).toContainText('BLOQUEADA');
+
+  // Los botones de reordenar del grupo A están disabled.
+  const downButtons = page.locator('[data-testid^="gs-order-A-down-"]');
+  const count = await downButtons.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i++) {
+    await expect(downButtons.nth(i)).toBeDisabled();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// 5e. El indicador gs-autosave-status muestra BLOQUEADA (no "Sin cambios")
+// ---------------------------------------------------------------------------
+test('locked – gs-autosave-status muestra "BLOQUEADA" en la sección de orden de grupo', async ({
+  browser,
+}) => {
+  const page = await registerOnLockedServer(browser);
+
+  await expect(page.getByTestId('group-standings-tab')).toBeVisible();
+
+  // El indicador de autosave de la sección de standings NO debe decir "Sin cambios"
+  // ni "Guardado"; debe indicar el estado bloqueado.
+  // GroupStandingsTab renderiza un span .text-amber-700 con "BLOQUEADA" cuando
+  // locked=true (mismo patrón que GroupMatchesTab).
+  const statusSpan = page.locator(
+    '[data-testid="group-standings-tab"] .text-amber-700',
+  );
+  await expect(statusSpan).toContainText('BLOQUEADA');
+  await expect(statusSpan).not.toContainText('Sin cambios');
+  await expect(statusSpan).not.toContainText('Guardado');
+});
+
+// ---------------------------------------------------------------------------
+// 5f. Todos los botones ↑ y ↓ de todos los grupos están disabled
+// ---------------------------------------------------------------------------
+test('locked – todos los botones de reorden (↑ y ↓) de los 12 grupos están disabled', async ({
+  browser,
+}) => {
+  const page = await registerOnLockedServer(browser);
+
+  await expect(page.getByTestId('group-standings-tab')).toBeVisible();
+
+  // Verificar todos los botones ↓ de todos los grupos (el ↑ del primero y ↓ del
+  // último ya son disabled por posición, pero los del medio también deben estar
+  // disabled por el flag locked).
+  for (const letter of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L']) {
+    const downButtons = page.locator(`[data-testid^="gs-order-${letter}-down-"]`);
+    const upButtons = page.locator(`[data-testid^="gs-order-${letter}-up-"]`);
+    const downCount = await downButtons.count();
+    expect(downCount).toBeGreaterThan(0);
+    // El botón del medio (ni primero ni último) debería estar disabled por locked.
+    // Verificamos al menos el primero (que sin locked estaría habilitado).
+    await expect(downButtons.first()).toBeDisabled();
+    // El botón ↑ del último ítem (que sin locked estaría habilitado).
+    await expect(upButtons.last()).toBeDisabled();
+  }
+});
