@@ -7,17 +7,20 @@ import { getCurrentUser } from '@/lib/auth/current-user';
 import {
   db,
   matches,
+  predictionsBestThirds,
   predictionsGroupMatches,
   predictionsGroupStandings,
   teams,
 } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import {
+  isBestThirdsLocked,
   isGroupMatchPredictionLocked,
   isGroupStandingsLocked,
 } from '@/lib/scoring/locks';
 import type { ApiResult } from '@/lib/types';
 import {
+  bestThirdsBatchSchema,
   groupMatchPredictionsBatchSchema,
   groupStandingsBatchSchema,
 } from '@/lib/validators/predictions';
@@ -96,6 +99,65 @@ export async function saveGroupMatchPredictions(
     });
   } catch (err) {
     logger.error('saveGroupMatchPredictions failed', { err, userId: user.id });
+    return internalError();
+  }
+
+  revalidatePath('/porra');
+  return { data: { saved: parsed.data.length } };
+}
+
+// --- Mejores terceros (predictions_best_thirds) ---
+
+export async function saveBestThirdsPrediction(
+  input: unknown,
+): Promise<ApiResult<{ saved: number }>> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: { code: 'UNAUTHENTICATED', message: 'Sesión requerida.' } };
+  }
+
+  if (isBestThirdsLocked()) {
+    return {
+      error: { code: 'LOCKED', message: 'Las predicciones ya están bloqueadas.' },
+    };
+  }
+
+  const parsed = bestThirdsBatchSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: { code: 'INVALID_INPUT', message: 'Datos inválidos.' } };
+  }
+
+  // Cada equipo debe existir en el catálogo. La coherencia "es 3.º de un grupo"
+  // es warning (scoring-rules.md §2.4) y se permite guardar stale: la BD refleja
+  // la decisión del usuario.
+  const teamRows = await db.select({ code: teams.code }).from(teams);
+  const knownCodes = new Set(teamRows.map((t) => t.code));
+  if (!parsed.data.every((e) => knownCodes.has(e.teamCode))) {
+    return {
+      error: { code: 'INVALID_INPUT', message: 'Algún equipo no existe.' },
+    };
+  }
+
+  // Reescritura completa del set del usuario (delete + insert) para evitar
+  // violar transitoriamente los UNIQUE (user,position) / (user,team) al
+  // reordenar, igual que en saveGroupStandings.
+  try {
+    await db.transaction(async (tx) => {
+      await tx
+        .delete(predictionsBestThirds)
+        .where(eq(predictionsBestThirds.userId, user.id));
+      if (parsed.data.length > 0) {
+        await tx.insert(predictionsBestThirds).values(
+          parsed.data.map((e) => ({
+            userId: user.id,
+            position: e.position,
+            teamCode: e.teamCode,
+          })),
+        );
+      }
+    });
+  } catch (err) {
+    logger.error('saveBestThirdsPrediction failed', { err, userId: user.id });
     return internalError();
   }
 

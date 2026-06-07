@@ -4,9 +4,15 @@ import { useState } from 'react';
 
 import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
 import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
+import { BestThirdsTab } from '@/components/porra/best-thirds-tab';
 import { GruposTab } from '@/components/porra/grupos-tab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { GROUP_LETTERS, MATCHES_GROUP_STAGE, PORRA_TABS } from '@/lib/constants';
+import {
+  BEST_THIRDS_COUNT,
+  GROUP_LETTERS,
+  MATCHES_GROUP_STAGE,
+  PORRA_TABS,
+} from '@/lib/constants';
 import type { UserPredictions } from '@/lib/predictions/types';
 import type { PredictionLocks } from '@/lib/scoring/locks';
 
@@ -59,6 +65,13 @@ export function PorraStepper({
         return 'complete';
       }
       return matchesFilled > 0 || groupsOrdered > 0 ? 'partial' : 'empty';
+    }
+    if (tabId === 'mejores-terceros') {
+      const picked = initialData.bestThirds.length;
+      if (picked >= BEST_THIRDS_COUNT) {
+        return 'complete';
+      }
+      return picked > 0 ? 'partial' : 'empty';
     }
     return 'empty';
   }
@@ -114,13 +127,23 @@ export function PorraStepper({
                   standingsLocked={locks.groupStandings}
                 />
               </section>
+            ) : tab.id === 'mejores-terceros' ? (
+              <section data-testid={`porra-panel-${tab.id}`} className="p-2">
+                <BestThirdsTab
+                  teamsCatalog={groupTeamsCatalog}
+                  standings={initialData.groupStandings}
+                  initial={initialData.bestThirds}
+                  locked={locks.bestThirds}
+                  onGoToGroups={() => setActive('grupos')}
+                />
+              </section>
             ) : (
               <section
                 data-testid={`porra-panel-${tab.id}`}
                 className="rounded border border-zinc-200 p-6"
               >
                 <h2 className="text-lg font-semibold">{tab.label}</h2>
-                <p className="mt-2 text-zinc-500">Próximamente (sub-slice 4.3+).</p>
+                <p className="mt-2 text-zinc-500">Próximamente (sub-slice 4.5+).</p>
               </section>
             )}
           </TabsContent>

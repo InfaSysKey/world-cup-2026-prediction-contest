@@ -82,3 +82,42 @@ export const groupStandingsBatchSchema = z
 export type GroupStandingsBatchInput = z.infer<
   typeof groupStandingsBatchSchema
 >;
+
+// --- Mejores terceros (predictions_best_thirds) ---
+
+// Ranking de los 8 mejores terceros (scoring-rules.md §2.4). El batch puede
+// llegar parcial (1–8 entradas): el guardado parcial está permitido. La
+// coherencia con el 3.º de cada grupo es warning y se evalúa en cross-tab, no
+// aquí; este schema solo garantiza forma y unicidad (replica los UNIQUE de BD).
+export const bestThirdPredictionSchema = z.object({
+  position: z.number().int().min(1).max(8),
+  teamCode,
+});
+export type BestThirdPredictionInput = z.infer<
+  typeof bestThirdPredictionSchema
+>;
+
+export const bestThirdsBatchSchema = z
+  .array(bestThirdPredictionSchema)
+  .max(8, 'No puede haber más de 8 mejores terceros.')
+  .superRefine((entries, ctx) => {
+    const seenPosition = new Set<number>();
+    const seenTeam = new Set<string>();
+    for (const e of entries) {
+      if (seenPosition.has(e.position)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Posición ${e.position} repetida en los mejores terceros.`,
+        });
+      }
+      if (seenTeam.has(e.teamCode)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: 'Un mismo equipo no puede ocupar dos posiciones.',
+        });
+      }
+      seenPosition.add(e.position);
+      seenTeam.add(e.teamCode);
+    }
+  });
+export type BestThirdsBatchInput = z.infer<typeof bestThirdsBatchSchema>;

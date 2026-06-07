@@ -57,7 +57,7 @@ export default defineConfig({
           // Toda la porra está bloqueada porque TOURNAMENT_START_AT es 2020-01-01.
           name: 'locked',
           use: { ...devices['Desktop Chrome'], baseURL: LOCKED_BASE_URL },
-          testMatch: ['**/porra-grupos-locked.spec.ts'],
+          testMatch: ['**/porra-*-locked.spec.ts'],
         },
       ]
     : [
@@ -65,7 +65,7 @@ export default defineConfig({
           name: 'chromium',
           use: { ...devices['Desktop Chrome'] },
           // Los tests del modo bloqueado se corren solo con PW_LOCKED=1.
-          testIgnore: ['**/porra-grupos-locked.spec.ts'],
+          testIgnore: ['**/porra-*-locked.spec.ts'],
         },
       ],
 });

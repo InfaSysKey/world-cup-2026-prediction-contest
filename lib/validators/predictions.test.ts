@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bestThirdsBatchSchema,
   groupMatchPredictionSchema,
   groupMatchPredictionsBatchSchema,
   groupStandingPredictionSchema,
@@ -148,5 +149,58 @@ describe('groupStandingsBatchSchema', () => {
       { groupLetter: 'B', position: 1, teamCode: 'ESP' },
     ]);
     expect(r.success).toBe(true);
+  });
+});
+
+describe('bestThirdsBatchSchema', () => {
+  it('acepta un ranking parcial válido', () => {
+    const r = bestThirdsBatchSchema.safeParse([
+      { position: 1, teamCode: 'MEX' },
+      { position: 2, teamCode: 'ESP' },
+    ]);
+    expect(r.success).toBe(true);
+  });
+
+  it('acepta un array vacío (guardado parcial)', () => {
+    const r = bestThirdsBatchSchema.safeParse([]);
+    expect(r.success).toBe(true);
+  });
+
+  it('rechaza posición fuera de 1–8', () => {
+    const r = bestThirdsBatchSchema.safeParse([
+      { position: 9, teamCode: 'MEX' },
+    ]);
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza el mismo equipo en dos posiciones', () => {
+    const r = bestThirdsBatchSchema.safeParse([
+      { position: 1, teamCode: 'MEX' },
+      { position: 2, teamCode: 'MEX' },
+    ]);
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza una posición repetida', () => {
+    const r = bestThirdsBatchSchema.safeParse([
+      { position: 1, teamCode: 'MEX' },
+      { position: 1, teamCode: 'ESP' },
+    ]);
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza más de 8 selecciones', () => {
+    const codes = ['MEX', 'ESP', 'BRA', 'ARG', 'FRA', 'GER', 'ITA', 'POR', 'NED'];
+    const r = bestThirdsBatchSchema.safeParse(
+      codes.map((teamCode, i) => ({ position: i + 1, teamCode })),
+    );
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza un teamCode con formato inválido', () => {
+    const r = bestThirdsBatchSchema.safeParse([
+      { position: 1, teamCode: 'mexico' },
+    ]);
+    expect(r.success).toBe(false);
   });
 });

@@ -67,5 +67,8 @@ export const PORRA_TABS = [
 ] as const;
 export type PorraTabId = (typeof PORRA_TABS)[number]['id'];
 
+// Número de mejores terceros que clasifican a 1/16 (scoring-rules.md §2.4).
+export const BEST_THIRDS_COUNT = 8;
+
 // Debounce del autosave del formulario (skill add-prediction-type).
 export const AUTOSAVE_DEBOUNCE_MS = 800;

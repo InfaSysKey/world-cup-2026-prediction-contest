@@ -212,6 +212,9 @@ test('locked – gs-autosave-status muestra "BLOQUEADA" en la sección de orden 
   await expect(statusSpan).not.toContainText('Guardado');
 });
 
+// El estado bloqueado del tab Mejores Terceros vive en
+// porra-mejores-terceros-locked.spec.ts (también project=locked).
+
 // ---------------------------------------------------------------------------
 // 5f. Todos los botones ↑ y ↓ de todos los grupos están disabled
 // ---------------------------------------------------------------------------
