@@ -1,30 +1,47 @@
 import { redirect } from 'next/navigation';
 
+import { PorraStepper } from '@/components/porra/porra-stepper';
 import { getCurrentUser } from '@/lib/auth/current-user';
+import { loadAllLocks } from '@/lib/scoring/locks';
 
-// Placeholder protegido; el formulario real de la porra es el slice 4.
+import { loadGroupMatches } from './load-group-matches';
+import { loadUserPredictions } from './load-predictions';
+
 export default async function PorraPage() {
   const user = await getCurrentUser();
   if (!user) {
     redirect('/login');
   }
 
+  const [initialData, groupMatchesCatalog] = await Promise.all([
+    loadUserPredictions(user.id),
+    loadGroupMatches(),
+  ]);
+  const locks = loadAllLocks();
+
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 p-8 text-center">
-      <h1 className="text-2xl font-semibold">Hola, {user.nickname}</h1>
-      <p className="text-zinc-600">Aquí irá tu porra. Próximamente.</p>
-      <div className="flex gap-4">
-        {user.isAdmin ? (
-          <a href="/admin/invitaciones" className="text-sm font-medium underline">
-            Administrar
-          </a>
-        ) : null}
-        <form action="/logout" method="post">
-          <button type="submit" className="text-sm font-medium underline">
-            Cerrar sesión
-          </button>
-        </form>
-      </div>
+    <main className="flex flex-1 flex-col items-center gap-6 p-8">
+      <header className="flex w-full max-w-3xl items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold">Hola, {user.nickname}</h1>
+        <div className="flex items-center gap-4">
+          {user.isAdmin ? (
+            <a href="/admin/invitaciones" className="text-sm font-medium underline">
+              Administrar
+            </a>
+          ) : null}
+          <form action="/logout" method="post">
+            <button type="submit" className="text-sm font-medium underline">
+              Cerrar sesión
+            </button>
+          </form>
+        </div>
+      </header>
+
+      <PorraStepper
+        initialData={initialData}
+        locks={locks}
+        groupMatchesCatalog={groupMatchesCatalog}
+      />
     </main>
   );
 }

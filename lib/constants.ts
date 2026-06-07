@@ -48,3 +48,24 @@ export const MAX_GOLES = 20;
 // Premios del podio: se guardan por equipo (team_code). El resto de premios
 // (botas/balones) se guardan por nombre de jugador (data-model.md §5.3).
 export const PODIUM_AWARD_KINDS = ['champion', 'runner_up', 'third'] as const;
+
+// --- Formulario de porra (Slice 4) ---
+
+// Tabs del stepper de la porra, en orden de navegación. Cada tab mapea a una o
+// varias categorías de predicción (ver skill add-prediction-type). El usuario
+// puede saltar libremente entre tabs; este array solo fija etiquetas y orden.
+export const PORRA_TABS = [
+  { id: 'grupos', label: 'Grupos' },
+  { id: 'mejores-terceros', label: 'Mejores Terceros' },
+  { id: 'dieciseisavos', label: '1/16' },
+  { id: 'octavos', label: '1/8' },
+  { id: 'cuartos', label: 'Cuartos' },
+  { id: 'semis', label: 'Semis' },
+  { id: 'tercer-puesto', label: '3.º y 4.º' },
+  { id: 'final', label: 'Final' },
+  { id: 'palmares', label: 'Podio + Premios' },
+] as const;
+export type PorraTabId = (typeof PORRA_TABS)[number]['id'];
+
+// Debounce del autosave del formulario (skill add-prediction-type).
+export const AUTOSAVE_DEBOUNCE_MS = 800;

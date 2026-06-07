@@ -46,7 +46,7 @@ test('registro con invitación válida → login → página protegida', async (
   await page.getByRole('button', { name: /crear/i }).click();
 
   await page.waitForURL('**/porra');
-  await expect(page.getByRole('heading')).toContainText('Hola');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Hola');
 
   // La cookie de sesión está bien marcada.
   const sessionCookie = (await ctx.cookies()).find(
