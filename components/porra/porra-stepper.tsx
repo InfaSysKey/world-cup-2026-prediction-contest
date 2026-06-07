@@ -3,9 +3,10 @@
 import { useState } from 'react';
 
 import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
-import { GroupMatchesTab } from '@/components/porra/group-matches-tab';
+import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
+import { GruposTab } from '@/components/porra/grupos-tab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { MATCHES_GROUP_STAGE, PORRA_TABS } from '@/lib/constants';
+import { GROUP_LETTERS, MATCHES_GROUP_STAGE, PORRA_TABS } from '@/lib/constants';
 import type { UserPredictions } from '@/lib/predictions/types';
 import type { PredictionLocks } from '@/lib/scoring/locks';
 
@@ -15,6 +16,7 @@ type PorraStepperProps = {
   initialData: UserPredictions;
   locks: PredictionLocks;
   groupMatchesCatalog: GroupCatalog[];
+  groupTeamsCatalog: GroupTeamsCatalog[];
 };
 
 const completionColor: Record<Completion, string> = {
@@ -35,6 +37,7 @@ export function PorraStepper({
   initialData,
   locks,
   groupMatchesCatalog,
+  groupTeamsCatalog,
 }: PorraStepperProps) {
   const [active, setActive] = useState<string>(PORRA_TABS[0].id);
 
@@ -44,11 +47,18 @@ export function PorraStepper({
 
   function completionOf(tabId: string): Completion {
     if (tabId === 'grupos') {
-      const filled = initialData.groupMatches.length;
-      if (filled >= MATCHES_GROUP_STAGE) {
+      // El tab Grupos cubre dos categorías: marcadores (72 partidos) y orden de
+      // los 12 grupos. Solo está completo si ambas lo están.
+      const matchesFilled = initialData.groupMatches.length;
+      const groupsOrdered = new Set(
+        initialData.groupStandings.map((s) => s.groupLetter),
+      ).size;
+      const matchesComplete = matchesFilled >= MATCHES_GROUP_STAGE;
+      const standingsComplete = groupsOrdered >= GROUP_LETTERS.length;
+      if (matchesComplete && standingsComplete) {
         return 'complete';
       }
-      return filled > 0 ? 'partial' : 'empty';
+      return matchesFilled > 0 || groupsOrdered > 0 ? 'partial' : 'empty';
     }
     return 'empty';
   }
@@ -95,10 +105,13 @@ export function PorraStepper({
           <TabsContent key={tab.id} value={tab.id}>
             {tab.id === 'grupos' ? (
               <section data-testid={`porra-panel-${tab.id}`} className="p-2">
-                <GroupMatchesTab
-                  catalog={groupMatchesCatalog}
-                  initial={initialData.groupMatches}
-                  locked={locks.groupMatches}
+                <GruposTab
+                  matchesCatalog={groupMatchesCatalog}
+                  teamsCatalog={groupTeamsCatalog}
+                  initialMatches={initialData.groupMatches}
+                  initialStandings={initialData.groupStandings}
+                  matchesLocked={locks.groupMatches}
+                  standingsLocked={locks.groupStandings}
                 />
               </section>
             ) : (

@@ -11,12 +11,15 @@ import type { GroupMatchPredictionInput } from '@/lib/validators/predictions';
 
 type Side = 'local' | 'visitante';
 type ScoreInput = { local: string; visitante: string };
-type ScoreMap = Record<number, ScoreInput>;
+export type ScoreMap = Record<number, ScoreInput>;
 
 type GroupMatchesTabProps = {
   catalog: GroupCatalog[];
   initial: PredictionGroupMatch[];
   locked: boolean;
+  // El contenedor de Grupos escucha los marcadores en vivo para detectar
+  // empates a puntos y alimentar el desempato del orden de grupo.
+  onValuesChange?: (values: ScoreMap) => void;
 };
 
 function buildInitialMap(initial: PredictionGroupMatch[]): ScoreMap {
@@ -61,6 +64,7 @@ export function GroupMatchesTab({
   catalog,
   initial,
   locked,
+  onValuesChange,
 }: GroupMatchesTabProps) {
   const [values, setValues] = useState<ScoreMap>(() => buildInitialMap(initial));
 
@@ -77,6 +81,7 @@ export function GroupMatchesTab({
     const current = values[matchId] ?? { local: '', visitante: '' };
     const next: ScoreMap = { ...values, [matchId]: { ...current, [side]: raw } };
     setValues(next);
+    onValuesChange?.(next);
     save(toEntries(next));
   }
 

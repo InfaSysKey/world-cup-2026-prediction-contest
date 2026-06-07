@@ -1,14 +1,26 @@
 'use server';
 
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentUser } from '@/lib/auth/current-user';
-import { db, matches, predictionsGroupMatches } from '@/lib/db';
+import {
+  db,
+  matches,
+  predictionsGroupMatches,
+  predictionsGroupStandings,
+  teams,
+} from '@/lib/db';
 import { logger } from '@/lib/logger';
-import { isGroupMatchPredictionLocked } from '@/lib/scoring/locks';
+import {
+  isGroupMatchPredictionLocked,
+  isGroupStandingsLocked,
+} from '@/lib/scoring/locks';
 import type { ApiResult } from '@/lib/types';
-import { groupMatchPredictionsBatchSchema } from '@/lib/validators/predictions';
+import {
+  groupMatchPredictionsBatchSchema,
+  groupStandingsBatchSchema,
+} from '@/lib/validators/predictions';
 
 // Server Actions del formulario de porra. Una acción por categoría de predicción.
 // Estructura obligatoria (skill add-prediction-type §2):
@@ -84,6 +96,89 @@ export async function saveGroupMatchPredictions(
     });
   } catch (err) {
     logger.error('saveGroupMatchPredictions failed', { err, userId: user.id });
+    return internalError();
+  }
+
+  revalidatePath('/porra');
+  return { data: { saved: parsed.data.length } };
+}
+
+// --- Orden de cada grupo (predictions_group_standings) ---
+
+export async function saveGroupStandings(
+  input: unknown,
+): Promise<ApiResult<{ saved: number }>> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: { code: 'UNAUTHENTICATED', message: 'Sesión requerida.' } };
+  }
+
+  if (isGroupStandingsLocked()) {
+    return {
+      error: { code: 'LOCKED', message: 'Las predicciones ya están bloqueadas.' },
+    };
+  }
+
+  const parsed = groupStandingsBatchSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: { code: 'INVALID_INPUT', message: 'Datos inválidos.' } };
+  }
+  if (parsed.data.length === 0) {
+    return { data: { saved: 0 } };
+  }
+
+  // Cada equipo debe pertenecer al grupo en el que se le coloca (data-model.md
+  // §4.2: el CHECK de pertenencia no se puede hacer en Postgres, va en la app).
+  const teamRows = await db
+    .select({ code: teams.code, groupLetter: teams.groupLetter })
+    .from(teams);
+  const groupOfTeam = new Map(teamRows.map((t) => [t.code, t.groupLetter]));
+  const allCoherent = parsed.data.every(
+    (e) => groupOfTeam.get(e.teamCode) === e.groupLetter,
+  );
+  if (!allCoherent) {
+    return {
+      error: {
+        code: 'INVALID_INPUT',
+        message: 'Algún equipo no pertenece al grupo indicado.',
+      },
+    };
+  }
+
+  // Agrupar por letra para reescribir cada grupo por completo. Borrar + insertar
+  // (en vez de upsert por posición) evita violar transitoriamente el UNIQUE
+  // (user, grupo, equipo) al reordenar: durante un swap, mover un equipo a una
+  // nueva posición chocaría con su fila antigua todavía presente.
+  const byGroup = new Map<string, typeof parsed.data>();
+  for (const e of parsed.data) {
+    const list = byGroup.get(e.groupLetter) ?? [];
+    list.push(e);
+    byGroup.set(e.groupLetter, list);
+  }
+
+  try {
+    await db.transaction(async (tx) => {
+      for (const [groupLetter, entries] of byGroup) {
+        await tx
+          .delete(predictionsGroupStandings)
+          .where(
+            and(
+              eq(predictionsGroupStandings.userId, user.id),
+              eq(predictionsGroupStandings.groupLetter, groupLetter),
+            ),
+          );
+        await tx.insert(predictionsGroupStandings).values(
+          entries.map((e) => ({
+            userId: user.id,
+            groupLetter: e.groupLetter,
+            position: e.position,
+            teamCode: e.teamCode,
+          })),
+        );
+      }
+    });
+  } catch (err) {
+    logger.error('saveGroupStandings failed', { err, userId: user.id });
     return internalError();
   }
 
