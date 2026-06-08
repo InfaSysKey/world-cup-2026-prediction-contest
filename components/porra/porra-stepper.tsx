@@ -6,9 +6,14 @@ import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
 import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
 import type { PodiumData } from '@/app/(porra)/porra/load-podium';
 import { podioCompletion } from '@/app/(porra)/porra/podio-completion';
+import {
+  premiosCompletion,
+  premiosStateFromAwards,
+} from '@/app/(porra)/porra/premios-completion';
 import { BestThirdsTab } from '@/components/porra/best-thirds-tab';
 import { GruposTab } from '@/components/porra/grupos-tab';
 import { PodioTab } from '@/components/porra/podio-tab';
+import { PremiosTab } from '@/components/porra/premios-tab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BEST_THIRDS_COUNT,
@@ -81,10 +86,14 @@ export function PorraStepper({
       return picked > 0 ? 'partial' : 'empty';
     }
     if (tabId === 'podio') {
-      // El tab Podio + Premios solo cubre el podio por ahora (sub-slice 4.6);
-      // los premios individuales llegan en 4.7. La regla (incluida la prioridad
-      // de "revisar" sobre "completo") vive en podioCompletion, función pura.
+      // La regla (incluida la prioridad de "revisar" sobre "completo") vive en
+      // podioCompletion, función pura.
       return podioCompletion(podium.podium, podium.mismatches);
+    }
+    if (tabId === 'premios') {
+      // El tab más simple: completo solo si los 6 nombres están rellenos. Sin
+      // 'revisar' (no hay deducción ni stale). Función pura, derivada de la BD.
+      return premiosCompletion(premiosStateFromAwards(initialData.awards));
     }
     return 'empty';
   }
@@ -156,6 +165,13 @@ export function PorraStepper({
                   teamsCatalog={groupTeamsCatalog}
                   podium={podium.podium}
                   deduction={podium.deduction}
+                  locked={locks.awards}
+                />
+              </section>
+            ) : tab.id === 'premios' ? (
+              <section data-testid={`porra-panel-${tab.id}`} className="p-2">
+                <PremiosTab
+                  initial={premiosStateFromAwards(initialData.awards)}
                   locked={locks.awards}
                 />
               </section>

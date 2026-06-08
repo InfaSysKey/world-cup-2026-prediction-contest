@@ -25,6 +25,7 @@ import {
   bestThirdsBatchSchema,
   groupMatchPredictionsBatchSchema,
   groupStandingsBatchSchema,
+  playerAwardsPredictionSchema,
   podiumPredictionSchema,
 } from '@/lib/validators/predictions';
 
@@ -246,6 +247,88 @@ export async function savePodiumPrediction(
     });
   } catch (err) {
     logger.error('savePodiumPrediction failed', { err, userId: user.id });
+    return internalError();
+  }
+
+  revalidatePath('/porra');
+  return { data: { saved: filled.length } };
+}
+
+// --- Premios individuales (predictions_awards, kinds boot_*/ball_*) ---
+
+// Separada de savePodiumPrediction: validación distinta (player_name vs team_code)
+// y cero acoplamiento entre las dos. Cada campo se guarda en su propia fila por
+// `kind`; un nombre vacío (null) borra esa fila. Un nombre presente se upserta
+// poniendo team_code a null (la fila de un boot/ball nunca lleva equipo).
+export async function savePlayerAwardsPrediction(
+  input: unknown,
+): Promise<ApiResult<{ saved: number }>> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: { code: 'UNAUTHENTICATED', message: 'Sesión requerida.' } };
+  }
+
+  if (isAwardsPredictionLocked()) {
+    return {
+      error: { code: 'LOCKED', message: 'Las predicciones ya están bloqueadas.' },
+    };
+  }
+
+  const parsed = playerAwardsPredictionSchema.safeParse(input);
+  if (!parsed.success) {
+    const distinct = parsed.error.issues.find(
+      (i) =>
+        i.message === 'Cada bota debe ser un jugador diferente.' ||
+        i.message === 'Cada balón debe ser un jugador diferente.',
+    );
+    return {
+      error: {
+        code: 'INVALID_INPUT',
+        message: distinct ? distinct.message : 'Datos inválidos.',
+      },
+    };
+  }
+
+  const entries = [
+    { kind: 'boot_gold' as const, playerName: parsed.data.bootGold },
+    { kind: 'boot_silver' as const, playerName: parsed.data.bootSilver },
+    { kind: 'boot_bronze' as const, playerName: parsed.data.bootBronze },
+    { kind: 'ball_gold' as const, playerName: parsed.data.ballGold },
+    { kind: 'ball_silver' as const, playerName: parsed.data.ballSilver },
+    { kind: 'ball_bronze' as const, playerName: parsed.data.ballBronze },
+  ];
+  const filled = entries.filter(
+    (e): e is { kind: typeof e.kind; playerName: string } =>
+      e.playerName !== null,
+  );
+  const emptyKinds = entries
+    .filter((e) => e.playerName === null)
+    .map((e) => e.kind);
+
+  try {
+    await db.transaction(async (tx) => {
+      for (const e of filled) {
+        await tx
+          .insert(predictionsAwards)
+          .values({ userId: user.id, kind: e.kind, playerName: e.playerName })
+          .onConflictDoUpdate({
+            target: [predictionsAwards.userId, predictionsAwards.kind],
+            set: { playerName: e.playerName, teamCode: null, updatedAt: new Date() },
+          });
+      }
+      if (emptyKinds.length > 0) {
+        await tx
+          .delete(predictionsAwards)
+          .where(
+            and(
+              eq(predictionsAwards.userId, user.id),
+              inArray(predictionsAwards.kind, emptyKinds),
+            ),
+          );
+      }
+    });
+  } catch (err) {
+    logger.error('savePlayerAwardsPrediction failed', { err, userId: user.id });
     return internalError();
   }
 

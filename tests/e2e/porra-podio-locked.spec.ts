@@ -1,5 +1,5 @@
 /**
- * Estado bloqueado del tab "Podio + Premios" (sub-slice 4.6).
+ * Estado bloqueado del tab "Podio" (sub-slice 4.6).
  *
  * Corre SOLO con el project "locked" (npm run e2e:locked): servidor arrancado
  * con TOURNAMENT_START_AT en el pasado, de modo que isAwardsPredictionLocked()

@@ -1,5 +1,6 @@
 /**
- * Cobertura e2e del tab "Podio + Premios" — sección Podio (sub-slice 4.6).
+ * Cobertura e2e del tab "Podio" (sub-slice 4.6). Los premios individuales
+ * tienen su propio tab desde 4.7 (porra-premios.spec.ts).
  *
  * Un usuario recién registrado no tiene predicción de bracket (el tab de
  * eliminatorias aún no existe), así que la deducción es vacía: los 3 selects

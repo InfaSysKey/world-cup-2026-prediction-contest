@@ -150,3 +150,72 @@ export const podiumPredictionSchema = z
     }
   });
 export type PodiumPredictionInput = z.infer<typeof podiumPredictionSchema>;
+
+// --- Premios individuales (predictions_awards, kinds boot_*/ball_*) ---
+
+// Los 9 kinds válidos de predictions_awards (data-model.md §4.5): podio por
+// team_code + botas/balones por player_name. Schema combinado para validar el
+// `kind` cuando llega suelto (lo importa quien necesite discriminar la fila).
+export const awardKindSchema = z.enum([
+  'champion',
+  'runner_up',
+  'third',
+  'boot_gold',
+  'boot_silver',
+  'boot_bronze',
+  'ball_gold',
+  'ball_silver',
+  'ball_bronze',
+]);
+export type AwardKind = z.infer<typeof awardKindSchema>;
+
+// Texto libre, sin catálogo de jugadores: el admin normaliza nombres en slice 8
+// si hace falta (decisión de producto que invalida el "autocompletado" de
+// scoring-rules.md §2.7). Cada campo es nullable para permitir guardado parcial;
+// un campo presente debe tener 1–80 chars tras recortar espacios.
+const PLAYER_NAME_MAX = 80;
+const playerName = z
+  .string()
+  .trim()
+  .min(1, 'El nombre no puede estar vacío.')
+  .max(PLAYER_NAME_MAX, `Máximo ${PLAYER_NAME_MAX} caracteres.`)
+  .nullable();
+
+// "Mismo jugador" para la regla de distinción: ignora mayúsculas y espacios
+// (los nombres ya llegan recortados por el .trim() del schema).
+function hasDuplicatePlayers(names: (string | null)[]): boolean {
+  const filled = names
+    .filter((n): n is string => n !== null)
+    .map((n) => n.toLowerCase());
+  return new Set(filled).size !== filled.length;
+}
+
+export const playerAwardsPredictionSchema = z
+  .object({
+    bootGold: playerName,
+    bootSilver: playerName,
+    bootBronze: playerName,
+    ballGold: playerName,
+    ballSilver: playerName,
+    ballBronze: playerName,
+  })
+  .superRefine((p, ctx) => {
+    // Las 3 botas deben ser jugadores distintos entre sí; las 3 balones también.
+    // PERO un jugador SÍ puede aparecer en bota Y en balón (Mbappé podría ser
+    // bota de oro y balón de oro): no se cruza entre los dos grupos.
+    if (hasDuplicatePlayers([p.bootGold, p.bootSilver, p.bootBronze])) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Cada bota debe ser un jugador diferente.',
+      });
+    }
+    if (hasDuplicatePlayers([p.ballGold, p.ballSilver, p.ballBronze])) {
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Cada balón debe ser un jugador diferente.',
+      });
+    }
+  });
+export type PlayerAwardsPredictionInput = z.infer<
+  typeof playerAwardsPredictionSchema
+>;

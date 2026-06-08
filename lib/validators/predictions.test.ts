@@ -6,8 +6,18 @@ import {
   groupMatchPredictionsBatchSchema,
   groupStandingPredictionSchema,
   groupStandingsBatchSchema,
+  playerAwardsPredictionSchema,
   podiumPredictionSchema,
 } from './predictions';
+
+const EMPTY_AWARDS = {
+  bootGold: null,
+  bootSilver: null,
+  bootBronze: null,
+  ballGold: null,
+  ballSilver: null,
+  ballBronze: null,
+};
 
 describe('groupMatchPredictionSchema', () => {
   it('acepta un marcador válido', () => {
@@ -296,6 +306,71 @@ describe('podiumPredictionSchema', () => {
 
   it('rechaza si falta una clave', () => {
     const r = podiumPredictionSchema.safeParse({ champion: 'ESP', third: 'POR' });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe('playerAwardsPredictionSchema', () => {
+  it('acepta las 6 botas/balones rellenas y distintas por grupo', () => {
+    const r = playerAwardsPredictionSchema.safeParse({
+      bootGold: 'Mbappé',
+      bootSilver: 'Haaland',
+      bootBronze: 'Kane',
+      ballGold: 'Bellingham',
+      ballSilver: 'Vinicius',
+      ballBronze: 'Rodri',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('acepta los 6 campos vacíos (guardado parcial)', () => {
+    const r = playerAwardsPredictionSchema.safeParse(EMPTY_AWARDS);
+    expect(r.success).toBe(true);
+  });
+
+  it('rechaza dos botas con el mismo jugador (mismo string)', () => {
+    const r = playerAwardsPredictionSchema.safeParse({
+      ...EMPTY_AWARDS,
+      bootGold: 'Mbappé',
+      bootSilver: 'Mbappé',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza dos botas iguales ignorando mayúsculas y espacios', () => {
+    const r = playerAwardsPredictionSchema.safeParse({
+      ...EMPTY_AWARDS,
+      bootGold: 'mbappé',
+      bootSilver: ' Mbappé ',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('permite el mismo jugador en bota y en balón (no cruza grupos)', () => {
+    const r = playerAwardsPredictionSchema.safeParse({
+      ...EMPTY_AWARDS,
+      bootGold: 'Mbappé',
+      ballGold: 'Mbappé',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('recorta los espacios del nombre al parsear', () => {
+    const r = playerAwardsPredictionSchema.safeParse({
+      ...EMPTY_AWARDS,
+      bootGold: '  Mbappé  ',
+    });
+    expect(r.success).toBe(true);
+    if (r.success) {
+      expect(r.data.bootGold).toBe('Mbappé');
+    }
+  });
+
+  it('rechaza un nombre de más de 80 caracteres', () => {
+    const r = playerAwardsPredictionSchema.safeParse({
+      ...EMPTY_AWARDS,
+      bootGold: 'a'.repeat(81),
+    });
     expect(r.success).toBe(false);
   });
 });
