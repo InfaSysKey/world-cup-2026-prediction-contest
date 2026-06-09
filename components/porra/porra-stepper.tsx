@@ -386,8 +386,8 @@ export function PorraStepper({
               <section data-testid={`porra-panel-${tab.id}`} className="p-2">
                 <PodioTab
                   teamsCatalog={groupTeamsCatalog}
-                  podium={podium.podium}
-                  deduction={podium.deduction}
+                  persisted={podium.persisted}
+                  suggested={podium.suggested}
                   locked={locks.awards}
                 />
               </section>

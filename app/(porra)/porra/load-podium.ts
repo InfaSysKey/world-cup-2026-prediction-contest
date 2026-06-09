@@ -1,19 +1,11 @@
 import { eq } from 'drizzle-orm';
 
-import {
-  db,
-  matches,
-  predictionsAwards,
-  predictionsKnockout,
-} from '@/lib/db';
+import { db, matches, predictionsAwards, predictionsKnockout } from '@/lib/db';
 import {
   deducePodium,
-  hasAnyDeduction,
   type KnockoutPick,
   type PodiumDeduction,
 } from '@/lib/scoring/deduce-podium';
-import { isAwardsPredictionLocked } from '@/lib/scoring/locks';
-import { analyzePodiumBracketMismatch } from '@/lib/validators/cross-tab';
 
 // Los 3 puestos del podio guardados en BD (null = puesto vacío).
 export type PodiumState = {
@@ -22,9 +14,9 @@ export type PodiumState = {
   third: string | null;
 };
 
-// Por puesto: true si el valor guardado no coincide con el deducido del bracket.
-// Es la fuente de verdad que consume el stepper para decidir "revisar" sin
-// recalcular la lógica de desincronización (cross-tab.ts).
+// Mapa de desincronización podio↔bracket por puesto. Lo conserva `podio-completion.ts`
+// (helper puro). Vive aquí por compatibilidad de tipos; el flujo vivo del stepper
+// usa `computePorraSummary` (lib/scoring/porra-summary.ts).
 export type PodiumMismatches = {
   champion: boolean;
   runnerUp: boolean;
@@ -32,25 +24,14 @@ export type PodiumMismatches = {
 };
 
 export type PodiumData = {
-  // Valores actuales en BD (tras el posible prefill inicial).
-  podium: PodiumState;
-  // Sugerencia derivada del bracket, para las líneas de ayuda y los avisos de
-  // desincronización en el tab.
-  deduction: PodiumDeduction;
-  // Mapa de desincronización podio↔bracket calculado server-side.
-  mismatches: PodiumMismatches;
+  // Lo que el usuario ha confirmado/guardado en predictions_awards. Puede estar
+  // vacío si nunca tocó el podio.
+  persisted: PodiumState;
+  // Sugerencia derivada del bracket (deducePodium). NO se persiste: el tab la
+  // muestra como "pendiente" para que el usuario la confirme o edite (ADR 0005).
+  // Puede ser parcial o vacía.
+  suggested: PodiumDeduction;
 };
-
-function toMismatches(podium: PodiumState, deduction: PodiumDeduction): PodiumMismatches {
-  const byKind = new Set(
-    analyzePodiumBracketMismatch(podium, deduction).map((m) => m.kind),
-  );
-  return {
-    champion: byKind.has('champion'),
-    runnerUp: byKind.has('runnerUp'),
-    third: byKind.has('third'),
-  };
-}
 
 const PODIUM_KINDS = ['champion', 'runner_up', 'third'] as const;
 
@@ -65,19 +46,27 @@ function toState(
   };
 }
 
-// Carga el podio del usuario y, si NUNCA lo ha tocado (cero filas de podio) y el
-// bracket permite deducir algo, hace un prefill server-side ANTES de renderizar
-// (sub-slice 4.6). Una vez existe alguna fila, la BD es la fuente de verdad y no
-// se vuelve a auto-rellenar.
+// Lectura PURA del podio (ADR 0005): devuelve lo guardado en BD y la sugerencia
+// derivada del bracket. NO escribe nada. El prefill automático en el render del
+// server component se eliminó (informe ultracode, CRÍTICO 2): persistir en un GET
+// rompía la idempotencia y creaba una carrera con loadUserPredictions. La
+// persistencia ocurre solo cuando el usuario confirma/edita un puesto vía la
+// Server Action savePodiumPrediction.
 export async function loadPodium(userId: number): Promise<PodiumData> {
   const [knockoutRows, awardRows] = await Promise.all([
     db
-      .select({ phase: matches.phase, winnerTeamCode: predictionsKnockout.winnerTeamCode })
+      .select({
+        phase: matches.phase,
+        winnerTeamCode: predictionsKnockout.winnerTeamCode,
+      })
       .from(predictionsKnockout)
       .innerJoin(matches, eq(matches.id, predictionsKnockout.matchId))
       .where(eq(predictionsKnockout.userId, userId)),
     db
-      .select({ kind: predictionsAwards.kind, teamCode: predictionsAwards.teamCode })
+      .select({
+        kind: predictionsAwards.kind,
+        teamCode: predictionsAwards.teamCode,
+      })
       .from(predictionsAwards)
       .where(eq(predictionsAwards.userId, userId)),
   ]);
@@ -86,40 +75,11 @@ export async function loadPodium(userId: number): Promise<PodiumData> {
     phase: r.phase,
     winnerTeamCode: r.winnerTeamCode,
   }));
-  const deduction = deducePodium(picks);
+  const suggested = deducePodium(picks);
 
   const podiumRows = awardRows.filter((r) =>
     (PODIUM_KINDS as readonly string[]).includes(r.kind),
   );
 
-  // Prefill solo si el usuario no tiene NINGUNA fila de podio todavía, hay algo
-  // deducible y la categoría no está bloqueada (no escribimos tras el cierre).
-  if (
-    podiumRows.length === 0 &&
-    hasAnyDeduction(deduction) &&
-    !isAwardsPredictionLocked()
-  ) {
-    const inserts = [
-      { kind: 'champion' as const, teamCode: deduction.champion },
-      { kind: 'runner_up' as const, teamCode: deduction.runnerUp },
-      { kind: 'third' as const, teamCode: deduction.third },
-    ].filter(
-      (e): e is { kind: typeof e.kind; teamCode: string } => e.teamCode !== null,
-    );
-
-    // onConflictDoNothing por seguridad ante una doble carga concurrente: el
-    // prefill es best-effort, no debe romper el render.
-    await db
-      .insert(predictionsAwards)
-      .values(inserts.map((e) => ({ userId, kind: e.kind, teamCode: e.teamCode })))
-      .onConflictDoNothing({
-        target: [predictionsAwards.userId, predictionsAwards.kind],
-      });
-
-    const podium = toState(inserts);
-    return { podium, deduction, mismatches: toMismatches(podium, deduction) };
-  }
-
-  const podium = toState(podiumRows);
-  return { podium, deduction, mismatches: toMismatches(podium, deduction) };
+  return { persisted: toState(podiumRows), suggested };
 }

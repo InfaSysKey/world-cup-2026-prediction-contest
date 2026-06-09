@@ -92,7 +92,6 @@ export type SummaryCatalog = {
 };
 
 const GROUP_STANDINGS_SLOTS = GROUP_LETTERS.length * 4;
-const PODIUM_SLOTS = 3;
 const PREMIOS_SLOTS = 6;
 
 const PHASE_LABEL: Record<Phase, string> = {
@@ -219,7 +218,14 @@ function summarizeBracket(
   return { status: statusFrom(gaps, mismatches), gaps, mismatches };
 }
 
-// --- Podio: 3 puestos + sincronía con el bracket + intra-podio distinto ---
+// --- Podio: 3 puestos, distinguiendo guardado / sugerido-sin-confirmar / stale ---
+// (ADR 0005) El bracket SUGIERE cada puesto; la sugerencia ya no se persiste en
+// el render. Por puesto:
+//   - guardado y coincide (o sin deducción)  → ok.
+//   - guardado pero discrepa del bracket      → stale (warning, "Sincronizar").
+//   - sin guardar pero el bracket lo sugiere  → sin confirmar (warning,
+//     "Confirmar"); NO es hueco pero deja el tab en "revisar".
+//   - sin guardar y sin sugerencia            → hueco.
 function summarizePodio(
   p: SummaryPredictions,
   catalog: SummaryCatalog,
@@ -233,11 +239,20 @@ function summarizePodio(
   const filled = [podium.champion, podium.runnerUp, podium.third].filter(
     (c): c is string => c !== null,
   );
-  const gaps = Math.max(0, PODIUM_SLOTS - filled.length);
+
+  const phaseByMatch = new Map(
+    catalog.knockoutMatches.map((m) => [m.id, m.phase]),
+  );
+  const picks: KnockoutPick[] = p.knockout.flatMap((k) => {
+    const phase = phaseByMatch.get(k.matchId);
+    return phase ? [{ phase, winnerTeamCode: k.winnerTeamCode }] : [];
+  });
+  const deduction = deducePodium(picks);
 
   const mismatches: Mismatch[] = [];
 
-  // Intra-podio: los 3 deben ser distintos (error duro, ya bloquea el guardado).
+  // Intra-podio: los 3 GUARDADOS deben ser distintos (error duro; el servidor
+  // también lo rechaza).
   if (new Set(filled).size !== filled.length) {
     mismatches.push({
       id: 'podio.duplicate',
@@ -248,35 +263,43 @@ function summarizePodio(
     });
   }
 
-  // Podio ↔ bracket: cada puesto debe coincidir con su deducción del bracket.
-  const phaseByMatch = new Map(
-    catalog.knockoutMatches.map((m) => [m.id, m.phase]),
-  );
-  const picks: KnockoutPick[] = p.knockout.flatMap((k) => {
-    const phase = phaseByMatch.get(k.matchId);
-    return phase ? [{ phase, winnerTeamCode: k.winnerTeamCode }] : [];
-  });
-  const deduction = deducePodium(picks);
-
   const SLOTS = [
     { kind: 'champion' as const, anchor: 'podio-field-champion', label: 'campeón' },
     { kind: 'runnerUp' as const, anchor: 'podio-field-runnerUp', label: 'subcampeón' },
     { kind: 'third' as const, anchor: 'podio-field-third', label: '3.º puesto' },
   ];
+
+  let gaps = 0;
   for (const slot of SLOTS) {
+    const saved = podium[slot.kind];
     const expected = deduction[slot.kind];
-    if (expected === null) {
-      continue;
-    }
-    if (podium[slot.kind] !== expected) {
+
+    if (saved !== null) {
+      // Guardado: solo es problema si discrepa de lo que deduce el bracket.
+      if (expected !== null && saved !== expected) {
+        mismatches.push({
+          id: `podio.${slot.kind}.bracketMismatch`,
+          tab: 'podio',
+          anchor: slot.anchor,
+          severity: 'warning',
+          message: `Tu ${slot.label} no coincide con tu bracket (${name(catalog.teamName, expected)}).`,
+          fix: { label: 'Sincronizar', action: 'sync-to-bracket' },
+        });
+      }
+    } else if (expected !== null) {
+      // Sin guardar pero el bracket lo sugiere: no es hueco, pero hay que
+      // confirmarlo (no se persiste solo).
       mismatches.push({
-        id: `podio.${slot.kind}.bracketMismatch`,
+        id: `podio.${slot.kind}.unconfirmed`,
         tab: 'podio',
         anchor: slot.anchor,
         severity: 'warning',
-        message: `Tu ${slot.label} no coincide con tu bracket (${name(catalog.teamName, expected)}).`,
-        fix: { label: 'Sincronizar', action: 'sync-to-bracket' },
+        message: `Tu ${slot.label} está sugerido por tu bracket (${name(catalog.teamName, expected)}); confírmalo o edítalo.`,
+        fix: { label: 'Confirmar', action: 'sync-to-bracket' },
       });
+    } else {
+      // Ni guardado ni sugerido.
+      gaps += 1;
     }
   }
 

@@ -239,4 +239,66 @@ describe('computePorraSummary', () => {
     expect(s.mismatches.length).toBeGreaterThanOrEqual(2);
     expect(s.mismatches[0].severity).toBe('error');
   });
+
+  // --- Podio sugerido (ADR 0005): persisted vs suggested ---
+
+  it('podio: sin guardar y sin bracket → 3 huecos, sin mismatch', () => {
+    const s = computePorraSummary(EMPTY, catalog);
+    expect(s.tabs.podio.gaps).toBe(3);
+    expect(s.tabs.podio.mismatches).toHaveLength(0);
+    expect(s.tabs.podio.status).toBe('incompleta');
+  });
+
+  it('podio: sin guardar pero la final predicha → campeón sin confirmar (revisar), 2 huecos', () => {
+    const p: SummaryPredictions = {
+      ...EMPTY,
+      knockout: [{ matchId: 104, winnerTeamCode: 'A1' }],
+    };
+    const s = computePorraSummary(p, catalog);
+    expect(s.tabs.podio.gaps).toBe(2);
+    const m = s.tabs.podio.mismatches.find(
+      (x) => x.id === 'podio.champion.unconfirmed',
+    );
+    expect(m).toBeDefined();
+    expect(m?.severity).toBe('warning');
+    expect(m?.fix?.label).toBe('Confirmar');
+    expect(m?.fix?.action).toBe('sync-to-bracket');
+    expect(s.tabs.podio.status).toBe('revisar');
+  });
+
+  it('podio: sin guardar y bracket completo → 3 sin confirmar, 0 huecos, revisar', () => {
+    const p: SummaryPredictions = { ...EMPTY, knockout: coherentKnockout() };
+    const s = computePorraSummary(p, catalog);
+    expect(s.tabs.podio.gaps).toBe(0);
+    const ids = s.tabs.podio.mismatches.map((m) => m.id).sort();
+    expect(ids).toEqual(
+      [
+        'podio.champion.unconfirmed',
+        'podio.runnerUp.unconfirmed',
+        'podio.third.unconfirmed',
+      ].sort(),
+    );
+    expect(s.tabs.podio.status).toBe('revisar');
+  });
+
+  it('podio: campeón guardado pero el bracket apunta a otro → stale, no "unconfirmed"', () => {
+    const p: SummaryPredictions = {
+      ...EMPTY,
+      knockout: [{ matchId: 104, winnerTeamCode: 'A1' }],
+      awards: [{ kind: 'champion', teamCode: 'B1', playerName: null }],
+    };
+    const s = computePorraSummary(p, catalog);
+    // champion guardado (B1) discrepa del bracket (A1) → stale; runnerUp y third
+    // sin sugerencia → 2 huecos.
+    expect(s.tabs.podio.gaps).toBe(2);
+    const stale = s.tabs.podio.mismatches.find(
+      (x) => x.id === 'podio.champion.bracketMismatch',
+    );
+    expect(stale).toBeDefined();
+    expect(stale?.fix?.label).toBe('Sincronizar');
+    expect(
+      s.tabs.podio.mismatches.some((x) => x.id === 'podio.champion.unconfirmed'),
+    ).toBe(false);
+    expect(s.tabs.podio.status).toBe('revisar');
+  });
 });

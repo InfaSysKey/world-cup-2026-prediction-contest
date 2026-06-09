@@ -8,7 +8,6 @@ import { TeamSelect, type TeamOption } from '@/components/porra/team-select';
 import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
 import { useAutoSave } from '@/lib/hooks/use-auto-save';
 import type { PodiumDeduction } from '@/lib/scoring/deduce-podium';
-import { analyzePodiumBracketMismatch } from '@/lib/validators/cross-tab';
 
 type PodiumKey = 'champion' | 'runnerUp' | 'third';
 
@@ -36,15 +35,18 @@ const NO_DEDUCTION_HINT: Record<PodiumKey, string> = {
 
 type PodioTabProps = {
   teamsCatalog: GroupTeamsCatalog[];
-  podium: PodiumState;
-  deduction: PodiumDeduction;
+  // Lo confirmado/guardado en BD (puede estar vacío).
+  persisted: PodiumState;
+  // Sugerencia derivada del bracket. NO está guardada: se muestra como pendiente
+  // hasta que el usuario la confirma o edita (ADR 0005).
+  suggested: PodiumDeduction;
   locked: boolean;
 };
 
 export function PodioTab({
   teamsCatalog,
-  podium: initial,
-  deduction,
+  persisted,
+  suggested,
   locked,
 }: PodioTabProps) {
   const options = useMemo<TeamOption[]>(() => {
@@ -60,7 +62,10 @@ export function PodioTab({
     return map;
   }, [options]);
 
-  const [podium, setPodium] = useState<PodiumState>(initial);
+  // `confirmed` = lo que el usuario ha guardado. Arranca desde BD. La sugerencia
+  // del bracket NUNCA entra aquí hasta que el usuario la confirma/edita: así no se
+  // persiste sola (CRÍTICO 2 del informe ultracode).
+  const [confirmed, setConfirmed] = useState<PodiumState>(persisted);
 
   const onSave = useCallback(async (next: PodiumState) => {
     const res = await savePodiumPrediction({
@@ -75,19 +80,49 @@ export function PodioTab({
 
   const { status, save, retry } = useAutoSave<PodiumState>(onSave);
 
-  // Equipos repetidos entre los 3 puestos: error duro (lo rechaza también el
-  // servidor). No guardamos mientras haya duplicados para no provocar un
-  // rechazo inútil; el usuario corrige y el siguiente cambio guarda.
+  // Valor mostrado por puesto: lo confirmado o, si está vacío, la sugerencia.
+  // Bloqueado: solo lo confirmado (una sugerencia sin confirmar nunca puntúa, no
+  // debe parecer guardada tras el cierre).
+  const displayValue = useCallback(
+    (key: PodiumKey): string | null =>
+      locked ? confirmed[key] : confirmed[key] ?? suggested[key] ?? null,
+    [confirmed, suggested, locked],
+  );
+
+  // Sin confirmar = sin valor guardado pero con sugerencia del bracket.
+  const isPending = useCallback(
+    (key: PodiumKey): boolean =>
+      !locked && confirmed[key] === null && (suggested[key] ?? null) !== null,
+    [confirmed, suggested, locked],
+  );
+
+  // Stale = guardado pero distinto de lo que deduce el bracket actual.
+  const staleMismatch = useCallback(
+    (key: PodiumKey): string | null => {
+      if (locked) {
+        return null;
+      }
+      const saved = confirmed[key];
+      const expected = suggested[key] ?? null;
+      return saved !== null && expected !== null && saved !== expected
+        ? expected
+        : null;
+    },
+    [confirmed, suggested, locked],
+  );
+
+  // Equipos repetidos entre los 3 puestos GUARDADOS: error duro (lo rechaza
+  // también el servidor). No guardamos mientras haya duplicados.
   const duplicates = useMemo(() => {
-    const filled = [podium.champion, podium.runnerUp, podium.third].filter(
+    const filled = [confirmed.champion, confirmed.runnerUp, confirmed.third].filter(
       (c): c is string => c !== null,
     );
     return new Set(filled).size !== filled.length;
-  }, [podium]);
+  }, [confirmed]);
 
   const commit = useCallback(
     (next: PodiumState) => {
-      setPodium(next);
+      setConfirmed(next);
       const filled = [next.champion, next.runnerUp, next.third].filter(
         (c): c is string => c !== null,
       );
@@ -100,21 +135,26 @@ export function PodioTab({
 
   const setField = useCallback(
     (key: PodiumKey, code: string | null) => {
-      commit({ ...podium, [key]: code });
+      commit({ ...confirmed, [key]: code });
     },
-    [commit, podium],
+    [commit, confirmed],
   );
 
-  const mismatchByKind = useMemo(
-    () => new Map(analyzePodiumBracketMismatch(podium, deduction).map((m) => [m.kind, m])),
-    [podium, deduction],
+  const confirmField = useCallback(
+    (key: PodiumKey) => {
+      const value = suggested[key];
+      if (value) {
+        commit({ ...confirmed, [key]: value });
+      }
+    },
+    [commit, confirmed, suggested],
   );
 
   function hintText(field: FieldConfig): string {
-    const suggested = deduction[field.key];
-    if (suggested) {
+    const value = suggested[field.key];
+    if (value) {
       const sourceLabel = field.source === 'final' ? 'la final' : 'la 3-4';
-      return `Sugerido desde tu predicción de ${sourceLabel}: ${teamLabel.get(suggested) ?? suggested}`;
+      return `Sugerido desde tu predicción de ${sourceLabel}: ${teamLabel.get(value) ?? value}`;
     }
     return NO_DEDUCTION_HINT[field.key];
   }
@@ -139,7 +179,8 @@ export function PodioTab({
       ) : null}
 
       {FIELDS.map((field) => {
-        const mismatch = mismatchByKind.get(field.key);
+        const pending = isPending(field.key);
+        const stale = staleMismatch(field.key);
         return (
           <div
             key={field.key}
@@ -151,7 +192,7 @@ export function PodioTab({
               {field.label}
             </label>
             <TeamSelect
-              value={podium[field.key]}
+              value={displayValue(field.key)}
               options={options}
               disabled={locked}
               testId={`podio-select-${field.key}`}
@@ -164,19 +205,37 @@ export function PodioTab({
             >
               {hintText(field)}
             </p>
-            {mismatch && !locked ? (
+
+            {pending ? (
+              <div
+                data-testid={`podio-suggested-${field.key}`}
+                className="flex flex-wrap items-center gap-2 rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs text-sky-800"
+              >
+                <span>Sugerido por tu bracket — confirma o edita.</span>
+                <button
+                  type="button"
+                  data-testid={`podio-confirm-${field.key}`}
+                  onClick={() => confirmField(field.key)}
+                  className="rounded border border-sky-400 px-1.5 py-0.5 font-medium"
+                >
+                  Confirmar
+                </button>
+              </div>
+            ) : null}
+
+            {stale ? (
               <div
                 data-testid={`podio-mismatch-${field.key}`}
                 className="flex flex-wrap items-center gap-2 rounded border border-amber-300 bg-amber-50 px-2 py-1 text-xs text-amber-800"
               >
                 <span>
                   No coincide con tu predicción del bracket (
-                  {teamLabel.get(mismatch.expected) ?? mismatch.expected}).
+                  {teamLabel.get(stale) ?? stale}).
                 </span>
                 <button
                   type="button"
                   data-testid={`podio-sync-${field.key}`}
-                  onClick={() => setField(field.key, mismatch.expected)}
+                  onClick={() => setField(field.key, stale)}
                   className="rounded border border-amber-400 px-1.5 py-0.5 font-medium"
                 >
                   Sincronizar con bracket

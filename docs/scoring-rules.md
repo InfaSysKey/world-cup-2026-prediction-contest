@@ -58,7 +58,7 @@ Para cada eliminatoria el jugador predice el **ganador** del cruce (sin marcador
 - 🥈 **Subcampeón** (perdedor de la final)
 - 🥉 **3.º puesto**
 
-> Estos tres se derivan del bracket, pero se guardan también como predicciones explícitas para facilitar puntuación.
+> Estos tres se **sugieren** automáticamente desde el bracket (ganador de la final → campeón; el otro finalista → subcampeón; ganador del 3-4 → 3.º), pero se guardan como predicciones explícitas **solo cuando el jugador los confirma o edita** en el formulario; la sugerencia no se persiste por sí sola (ver `docs/decisions/0005-podio-sugerido-no-persistido.md`). Mientras un puesto siga como sugerencia sin confirmar, el formulario lo marca como "revisar".
 
 ### 2.7 Premios individuales
 
