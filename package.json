@@ -13,7 +13,9 @@
     "admin:bootstrap": "tsx lib/db/seed/admin-bootstrap.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:locked": "PW_LOCKED=1 playwright test",
+    "e2e:all": "npm run e2e && npm run e2e:locked"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -35,6 +37,7 @@
   "devDependencies": {
     "@playwright/test": "^1.60.0",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^20",

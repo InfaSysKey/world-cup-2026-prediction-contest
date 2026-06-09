@@ -72,7 +72,8 @@ Aplicación web para gestionar una **porra del Mundial 2026** entre un grupo cer
 │   ├── validators/         # esquemas zod compartidos
 │   └── constants.ts        # nada de magic strings/numbers
 ├── tests/
-│   └── e2e/                # tests Playwright
+│   ├── e2e/                # tests Playwright
+│   └── fixtures/           # helpers y datos compartidos por los tests e2e
 ├── infra/
 │   ├── Containerfile       # imagen de la app
 │   ├── compose.yml         # db + app + caddy

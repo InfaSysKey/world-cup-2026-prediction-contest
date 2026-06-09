@@ -1,19 +1,6 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-const ADMIN_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL ?? '';
-const ADMIN_PASSWORD = process.env.ADMIN_BOOTSTRAP_PASSWORD ?? '';
-
-async function loginAsAdmin(page: Page): Promise<void> {
-  await page.goto('/login');
-  await page.fill('input[name="email"]', ADMIN_EMAIL);
-  await page.fill('input[name="password"]', ADMIN_PASSWORD);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('**/porra');
-}
-
-function uniqueSuffix(): string {
-  return `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-}
+import { loginAsAdmin, uniqueSuffix } from '../fixtures/auth-helpers';
 
 test('admin genera invitación y aparece en la lista sin exponer el token', async ({
   browser,

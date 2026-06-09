@@ -1,31 +1,9 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 
-const ADMIN_EMAIL = process.env.ADMIN_BOOTSTRAP_EMAIL ?? '';
-const ADMIN_PASSWORD = process.env.ADMIN_BOOTSTRAP_PASSWORD ?? '';
-
-async function login(page: Page, email: string, password: string): Promise<void> {
-  await page.goto('/login');
-  await page.fill('input[name="email"]', email);
-  await page.fill('input[name="password"]', password);
-  await page.click('button[type="submit"]');
-}
-
-// El admin genera una invitación por la UI y devuelve la URL mostrada una vez.
-async function adminGenerateInvitationUrl(browser: Browser): Promise<string> {
-  const ctx = await browser.newContext();
-  const page = await ctx.newPage();
-  await login(page, ADMIN_EMAIL, ADMIN_PASSWORD);
-  await page.waitForURL('**/porra');
-  await page.goto('/admin/invitaciones');
-  await page.getByRole('button', { name: /generar/i }).click();
-  const url = await page.getByTestId('invitation-url').innerText();
-  await ctx.close();
-  return url;
-}
-
-function uniqueSuffix(): string {
-  return `${Date.now()}${Math.floor(Math.random() * 1000)}`;
-}
+import {
+  adminGenerateInvitationUrl,
+  uniqueSuffix,
+} from '../fixtures/auth-helpers';
 
 test('registro con invitación válida → login → página protegida', async ({
   browser,
@@ -46,7 +24,7 @@ test('registro con invitación válida → login → página protegida', async (
   await page.getByRole('button', { name: /crear/i }).click();
 
   await page.waitForURL('**/porra');
-  await expect(page.getByRole('heading')).toContainText('Hola');
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('Hola');
 
   // La cookie de sesión está bien marcada.
   const sessionCookie = (await ctx.cookies()).find(
