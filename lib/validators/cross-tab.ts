@@ -3,10 +3,9 @@
 // Función pura, consumida por el resumen global (porra-summary) y por el tab de
 // mejores terceros.
 //
-// Las antiguas checkBestThirdsCoherence y analyzePodiumBracketMismatch se
-// eliminaron: la coherencia podio↔bracket la calculan ahora computePorraSummary y
-// el PodioTab de forma inline (ADR 0005); el aviso de tercero incoherente lo
-// cubre este mismo analyzeBestThirdsStale.
+// La coherencia podio↔bracket NO vive aquí: la calculan computePorraSummary y el
+// PodioTab de forma inline (ADR 0005). Este módulo solo cubre el aviso de tercero
+// incoherente.
 
 type StandingEntry = {
   groupLetter: string;

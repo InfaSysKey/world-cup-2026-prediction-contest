@@ -1,6 +1,13 @@
 porra.tudominio.com {
     encode gzip
     reverse_proxy app:3000
+
+    # HSTS: Caddy ya fuerza HTTPS y emite el cert automáticamente; este header
+    # instruye al navegador a no volver a hablar HTTP con este dominio durante
+    # 2 años, incluidos subdominios. El resto de headers de seguridad (CSP,
+    # X-Frame-Options, etc.) los pone la app en next.config.ts.
+    header Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+
     log {
         output stdout
         format console

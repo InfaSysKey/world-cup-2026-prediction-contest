@@ -1,0 +1,107 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  IMAGE_REPO: ghcr.io/infasyskey/porra-app
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: porra
+          POSTGRES_PASSWORD: porra
+          POSTGRES_DB: porra
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U porra"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://porra:porra@localhost:5432/porra
+      COOKIE_SECRET: Y2ktc2VjcmV0LWZvci10ZXN0cy1vbmx5LTMyYnl0ZXNzISE=
+      ADMIN_BOOTSTRAP_EMAIL: admin@example.com
+      ADMIN_BOOTSTRAP_PASSWORD: admin-ci-password
+      TOURNAMENT_START_AT: "2026-06-11T17:00:00Z"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install deps
+        run: npm ci --legacy-peer-deps
+
+      - name: Migrate DB
+        run: npm run db:migrate
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run e2e:all
+
+  build:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login a GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_TOKEN }}
+
+      - name: Build & push (SHA + latest)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: infra/Containerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE_REPO }}:${{ github.sha }}
+            ${{ env.IMAGE_REPO }}:latest
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    # No cancelar un deploy en curso (dejaría la app a medias); encolar el
+    # siguiente y ejecutarlo cuando termine el actual.
+    concurrency:
+      group: deploy
+      cancel-in-progress: false
+    steps:
+      - name: Deploy por SSH al VPS
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/id_deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "cd /opt/porra && git pull origin main && ./infra/scripts/deploy.sh ${{ github.sha }}"

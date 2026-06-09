@@ -9,11 +9,11 @@
 // del usuario es la suma limpia de las 7 filas y la penalización es auditable en
 // un único sitio.
 
-import { GROUP_LETTERS } from '@/lib/constants';
+import { GROUP_LETTERS, PODIUM_AWARD_KINDS } from '@/lib/constants';
 import type { ScoreCategory } from '@/lib/db';
 import { SCORE_CATEGORIES } from '@/lib/db';
 
-import type { AwardKind, AwardOfficial, AwardPicks } from './awards';
+import type { AwardOfficial, AwardPicks } from './awards';
 import { scoreAwards } from './awards';
 import { scoreBestThirds } from './best-thirds';
 import { scoreGroupMatch } from './group-matches';
@@ -21,7 +21,7 @@ import { scoreGroupStanding } from './group-standings';
 import type { KnockoutPhase } from './knockout';
 import { scoreKnockoutMatch } from './knockout';
 import { scorePenalties } from './penalties';
-import type { PodiumKind, PodiumOfficial, PodiumPicks } from './podium';
+import type { PodiumOfficial, PodiumPicks } from './podium';
 import { scorePodium } from './podium';
 
 // --- Entrada: predicciones + oficiales ya normalizados por el loader ---
@@ -147,14 +147,12 @@ export function computeScoreRows(inputs: ScoringInputs): ScoreRow[] {
   // --- §3.5 podium ---
   const podium = scorePodium(inputs.podium.picks, inputs.podium.official);
   const podiumPoints = podium.reduce((sum, s) => sum + s.points, 0);
-  const podiumHits = podium
-    .filter((s) => s.hit)
-    .map((s) => s.kind as PodiumKind);
+  const podiumHits = podium.filter((s) => s.hit).map((s) => s.kind);
 
   // --- §3.6 awards ---
   const awards = scoreAwards(inputs.awards.picks, inputs.awards.official);
   const awardPoints = awards.reduce((sum, s) => sum + s.points, 0);
-  const awardHits = awards.filter((s) => s.hit).map((s) => s.kind as AwardKind);
+  const awardHits = awards.filter((s) => s.hit).map((s) => s.kind);
 
   // --- §4 penalties: centraliza los −1 de los huecos en 3.1–3.3 ---
   const penalties = scorePenalties({
@@ -217,7 +215,7 @@ export const ALL_AWARD_KINDS = [
 ] as const;
 export type AllAwardKind = (typeof ALL_AWARD_KINDS)[number];
 
-const PODIUM_KINDS = new Set<AllAwardKind>(['champion', 'runner_up', 'third']);
+const PODIUM_KINDS = new Set<AllAwardKind>(PODIUM_AWARD_KINDS);
 
 export type ResultChange =
   | { type: 'group_match'; matchId: number }

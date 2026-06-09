@@ -478,7 +478,27 @@ chmod +x /opt/porra/infra/scripts/backup.sh
 ( crontab -l 2>/dev/null; echo "0 4 * * * /opt/porra/infra/scripts/backup.sh" ) | crontab -
 ```
 
-Backup remoto a B2 (gratis hasta 10 GB) lo añadimos en el slice 8.
+#### Backup remoto semanal a Backblaze B2
+
+Gratis hasta 10 GB. Sube el dump local más reciente; retención remota 90 días.
+
+1. Instala y configura `rclone` en el host con un remote B2 (no se commitea nada):
+
+   ```bash
+   rclone config   # type=b2, account=<keyId>, key=<applicationKey>, nombre del remote: b2
+   ```
+
+2. Exporta el bucket en el entorno del cron (las credenciales ya las guarda rclone):
+
+   ```bash
+   # /opt/porra/infra/scripts/backup-b2.sh lee B2_BUCKET (y opcional RCLONE_B2_REMOTE).
+   chmod +x /opt/porra/infra/scripts/backup-b2.sh
+   # Cron: domingos a las 5:00 (tras el nocturno de las 4:00).
+   ( crontab -l 2>/dev/null; \
+     echo "0 5 * * 0 B2_BUCKET=porra-backups /opt/porra/infra/scripts/backup-b2.sh" ) | crontab -
+   ```
+
+3. **Verifica el restore al menos una vez**: descarga un dump de B2, restáuralo en una BD limpia local y arranca la app contra ella. Un backup sin probar no es un backup.
 
 ---
 

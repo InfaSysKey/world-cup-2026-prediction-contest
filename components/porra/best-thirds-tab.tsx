@@ -269,7 +269,7 @@ export function BestThirdsTab({
                   aria-label={`Añadir ${teamLabel.get(code)?.name ?? code}`}
                   disabled={locked || isSelected || selected.length >= TOTAL_SLOTS}
                   onClick={() => add(code)}
-                  className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded border border-zinc-300 disabled:opacity-30"
+                  className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded border border-zinc-300 disabled:opacity-30"
                 >
                   +
                 </button>
