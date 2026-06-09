@@ -6,10 +6,17 @@ type LogLevel = 'info' | 'warn' | 'error';
 type LogContext = Record<string, unknown>;
 
 // Los Error no se serializan bien con JSON.stringify; los normalizamos a un
-// objeto plano con name/message/stack.
+// objeto plano con name/message/stack. Incluimos `cause` para no perder el
+// error raíz cuando un wrapper (p. ej. Drizzle) envuelve al driver.
 function normalize(value: unknown): unknown {
   if (value instanceof Error) {
-    return { name: value.name, message: value.message, stack: value.stack };
+    const out: Record<string, unknown> = {
+      name: value.name,
+      message: value.message,
+      stack: value.stack,
+    };
+    if (value.cause !== undefined) out.cause = normalize(value.cause);
+    return out;
   }
   return value;
 }

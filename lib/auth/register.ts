@@ -12,14 +12,16 @@ export type RegisterResult =
 // Error interno para abortar la transacción cuando el token no es válido.
 class InvalidTokenError extends Error {}
 
-// Postgres 23505 = unique_violation (email o nickname duplicado).
+// Postgres 23505 = unique_violation (email o nickname duplicado). Drizzle
+// envuelve el error original del driver y guarda la causa en `err.cause`, así
+// que recorremos la cadena hasta encontrar el código.
 function isUniqueViolation(err: unknown): boolean {
-  return (
-    typeof err === 'object' &&
-    err !== null &&
-    'code' in err &&
-    (err as { code?: unknown }).code === '23505'
-  );
+  let current: unknown = err;
+  while (typeof current === 'object' && current !== null) {
+    if ((current as { code?: unknown }).code === '23505') return true;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 // Registra un usuario consumiendo su invitación en la MISMA transacción
