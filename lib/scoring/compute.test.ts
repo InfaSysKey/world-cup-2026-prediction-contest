@@ -153,8 +153,18 @@ describe('computeScoreRows — desglose calculado a mano', () => {
     }
   });
 
-  it('es determinista: dos ejecuciones devuelven exactamente lo mismo', () => {
-    expect(computeScoreRows(SCENARIO)).toEqual(computeScoreRows(SCENARIO));
+  it('es determinista: dos ejecuciones devuelven el mismo snapshot literal', () => {
+    const expected = {
+      group_matches: 5,
+      group_standings: 22,
+      best_thirds: 21,
+      bracket: 4,
+      podium: 28,
+      awards: 15,
+      penalties: -3,
+    };
+    expect(pointsByCategory(SCENARIO)).toEqual(expected);
+    expect(pointsByCategory(SCENARIO)).toEqual(expected);
   });
 
   it('produce siempre las 7 categorías', () => {
