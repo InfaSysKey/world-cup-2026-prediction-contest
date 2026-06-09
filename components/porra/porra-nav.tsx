@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
+import { ThemeToggle } from '@/components/theme-toggle';
 import { cn } from '@/lib/utils';
 
 // Barra de navegación de las páginas autenticadas (slice 7.5). Client component
@@ -41,9 +42,11 @@ export function PorraNav({ nickname, isAdmin, lock }: Props) {
   const pathname = usePathname();
 
   return (
-    <header className="border-b">
+    <header className="border-b border-slot bg-surface">
       <nav className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-x-4 gap-y-2 p-3">
-        <span className="font-semibold">Porra 2026</span>
+        <span className="font-display text-lg font-semibold text-ink">
+          Porra 2026
+        </span>
         <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           {LINKS.map((link) => {
             const active =
@@ -55,8 +58,8 @@ export function PorraNav({ nickname, isAdmin, lock }: Props) {
                   className={cn(
                     'hover:underline',
                     active
-                      ? 'font-semibold text-foreground'
-                      : 'text-muted-foreground',
+                      ? 'font-semibold text-cromo-cobalt'
+                      : 'text-ink-muted',
                   )}
                 >
                   {link.label}
@@ -68,7 +71,7 @@ export function PorraNav({ nickname, isAdmin, lock }: Props) {
             <li>
               <Link
                 href="/admin/invitaciones"
-                className="text-muted-foreground hover:underline"
+                className="text-ink-muted hover:underline"
               >
                 Admin
               </Link>
@@ -76,9 +79,10 @@ export function PorraNav({ nickname, isAdmin, lock }: Props) {
           ) : null}
         </ul>
         <div className="ml-auto flex items-center gap-3 text-sm">
-          <span className="text-muted-foreground">{nickname}</span>
+          <ThemeToggle />
+          <span className="text-ink-muted">{nickname}</span>
           <form action="/logout" method="post">
-            <button type="submit" className="font-medium underline">
+            <button type="submit" className="font-medium text-ink underline">
               Salir
             </button>
           </form>
@@ -88,8 +92,8 @@ export function PorraNav({ nickname, isAdmin, lock }: Props) {
         className={cn(
           'px-3 py-1.5 text-center text-xs',
           lock.locked
-            ? 'bg-muted text-muted-foreground'
-            : 'bg-amber-100 text-amber-800',
+            ? 'bg-muted text-ink-muted'
+            : 'bg-amber-400/10 text-amber-700 dark:text-amber-300',
         )}
       >
         {lockMessage(lock)}

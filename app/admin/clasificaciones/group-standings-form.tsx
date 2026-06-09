@@ -29,12 +29,12 @@ export function GroupStandingsForm({
       <span className="w-16 font-semibold">Grupo {groupLetter}</span>
       {POSITIONS.map((pos) => (
         <label key={pos} className="flex flex-col gap-0.5">
-          <span className="text-xs text-zinc-500">{pos}.º</span>
+          <span className="text-xs text-ink-muted">{pos}.º</span>
           <select
             name="teamCodes"
             defaultValue={current[pos] ?? ''}
             aria-label={`Grupo ${groupLetter} posición ${pos}`}
-            className="rounded border border-zinc-300 px-2 py-1"
+            className="rounded border border-slot px-2 py-1"
           >
             <option value="">—</option>
             {teams.map((team) => (
@@ -48,16 +48,16 @@ export function GroupStandingsForm({
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+        className="rounded bg-cromo-cobalt px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
       >
         {pending ? 'Guardando…' : 'Guardar'}
       </button>
       {state.error ? (
-        <span role="alert" className="text-xs text-red-600">
+        <span role="alert" className="text-xs text-cromo-coral">
           {state.error.message}
         </span>
       ) : null}
-      {state.ok ? <span className="text-xs text-green-600">guardado</span> : null}
+      {state.ok ? <span className="text-xs text-cromo-mint">guardado</span> : null}
     </form>
   );
 }

@@ -25,12 +25,12 @@ export function BestThirdsForm({
       <div className="flex flex-wrap gap-2">
         {SLOTS.map((pos) => (
           <label key={pos} className="flex flex-col gap-0.5">
-            <span className="text-xs text-zinc-500">#{pos}</span>
+            <span className="text-xs text-ink-muted">#{pos}</span>
             <select
               name="teamCodes"
               defaultValue={current[pos] ?? ''}
               aria-label={`Mejor tercero ${pos}`}
-              className="rounded border border-zinc-300 px-2 py-1"
+              className="rounded border border-slot px-2 py-1"
             >
               <option value="">—</option>
               {teams.map((team) => (
@@ -46,17 +46,17 @@ export function BestThirdsForm({
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+          className="rounded bg-cromo-cobalt px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
         >
           {pending ? 'Guardando…' : 'Guardar terceros'}
         </button>
         {state.error ? (
-          <span role="alert" className="text-xs text-red-600">
+          <span role="alert" className="text-xs text-cromo-coral">
             {state.error.message}
           </span>
         ) : null}
         {state.ok ? (
-          <span className="text-xs text-green-600">guardado</span>
+          <span className="text-xs text-cromo-mint">guardado</span>
         ) : null}
       </div>
     </form>

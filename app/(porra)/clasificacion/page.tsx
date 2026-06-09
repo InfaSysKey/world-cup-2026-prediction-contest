@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 
+import { RankingBoard, type BoardPlayer } from '@/components/porra/ranking-board';
 import {
   Table,
   TableBody,
@@ -11,7 +12,6 @@ import {
 import { getCurrentUser } from '@/lib/auth/current-user';
 import { loadRanking } from '@/lib/db/ranking';
 import type { ScoreCategory } from '@/lib/db';
-import { cn } from '@/lib/utils';
 import { rankPlayers } from '@/lib/scoring/ranking';
 
 // Columnas de puntos por categoría (data-model.md §6.1). El total es la suma de
@@ -42,76 +42,82 @@ export default async function ClasificacionPage() {
     rows.map((r) => [r.player.userId, r.categoryPoints]),
   );
 
+  const players: BoardPlayer[] = ranked.map((p) => ({
+    userId: p.userId,
+    nickname: p.nickname,
+    rank: p.rank,
+    needsDraw: p.needsDraw,
+    totalPoints: p.metrics.totalPoints,
+    categoryPoints: pointsByUser.get(p.userId),
+  }));
+
   return (
     <main className="flex flex-1 flex-col items-center gap-6 p-4 sm:p-8">
       <div className="w-full max-w-3xl">
-        <h1 className="mb-1 text-2xl font-semibold">Clasificación</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Orden por puntos totales; los empates se resuelven con los criterios de
-          desempate. Un{' '}
-          <span className="font-medium text-foreground">empate</span> sin resolver
-          queda pendiente de sorteo.
+        <p className="text-eyebrow mb-1">
+          {ranked.length} {ranked.length === 1 ? 'participante' : 'participantes'}
+        </p>
+        <h1 className="text-display-l mb-2">Clasificación</h1>
+        <p className="mb-5 text-sm text-ink-muted">
+          El cromo brillante es de quien va primero. Los empates se rompen por
+          desempate; si ni eso, queda pendiente de sorteo.
         </p>
 
-        {ranked.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            Todavía no hay puntuaciones.
-          </p>
-        ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-8 text-right">#</TableHead>
-                <TableHead>Jugador</TableHead>
-                {CATEGORY_COLUMNS.map((c) => (
-                  <TableHead key={c.category} className="text-right" title={c.full}>
-                    {c.label}
-                  </TableHead>
-                ))}
-                <TableHead className="text-right font-semibold">Total</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ranked.map((p) => {
-                const categoryPoints = pointsByUser.get(p.userId);
-                const isMe = p.userId === user.id;
-                return (
-                  <TableRow
-                    key={p.userId}
-                    data-testid="ranking-row"
-                    className={cn(isMe && 'bg-muted/60 font-medium')}
-                  >
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {p.rank}
-                    </TableCell>
-                    <TableCell>
-                      <span>{p.nickname}</span>
-                      {p.needsDraw ? (
-                        <span
-                          className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-800"
-                          title="Empate sin resolver: pendiente de sorteo público"
-                        >
-                          empate
-                        </span>
-                      ) : null}
-                    </TableCell>
+        <RankingBoard players={players} meId={user.id} />
+
+        {ranked.length > 0 ? (
+          <details className="mt-8 rounded-[14px] border border-slot bg-surface">
+            <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-ink-muted hover:text-ink">
+              Ver desglose por categorías
+            </summary>
+            <div className="overflow-x-auto px-2 pb-2">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-8 text-right">#</TableHead>
+                    <TableHead>Jugador</TableHead>
                     {CATEGORY_COLUMNS.map((c) => (
-                      <TableCell
+                      <TableHead
                         key={c.category}
-                        className="text-right tabular-nums text-muted-foreground"
+                        className="text-right"
+                        title={c.full}
                       >
-                        {categoryPoints?.[c.category] ?? 0}
-                      </TableCell>
+                        {c.label}
+                      </TableHead>
                     ))}
-                    <TableCell className="text-right font-semibold tabular-nums">
-                      {p.metrics.totalPoints}
-                    </TableCell>
+                    <TableHead className="text-right font-semibold">
+                      Total
+                    </TableHead>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        )}
+                </TableHeader>
+                <TableBody>
+                  {ranked.map((p) => {
+                    const categoryPoints = pointsByUser.get(p.userId);
+                    return (
+                      <TableRow key={p.userId}>
+                        <TableCell className="text-right tabular-nums text-ink-muted">
+                          {p.rank}
+                        </TableCell>
+                        <TableCell>{p.nickname}</TableCell>
+                        {CATEGORY_COLUMNS.map((c) => (
+                          <TableCell
+                            key={c.category}
+                            className="text-right tabular-nums text-ink-muted"
+                          >
+                            {categoryPoints?.[c.category] ?? 0}
+                          </TableCell>
+                        ))}
+                        <TableCell className="text-right font-semibold tabular-nums">
+                          {p.metrics.totalPoints}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          </details>
+        ) : null}
       </div>
     </main>
   );

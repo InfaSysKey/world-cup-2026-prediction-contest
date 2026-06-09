@@ -11,6 +11,7 @@ import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
 import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
 import type { PodiumData } from '@/app/(porra)/porra/load-podium';
 import { premiosStateFromAwards } from '@/app/(porra)/porra/premios-completion';
+import { AlbumProgress } from '@/components/porra/album-progress';
 import { BestThirdsTab } from '@/components/porra/best-thirds-tab';
 import { BracketPhase } from '@/components/porra/bracket-phase';
 import { GruposTab } from '@/components/porra/grupos-tab';
@@ -19,7 +20,10 @@ import { PorraStickyFooter } from '@/components/porra/porra-sticky-footer';
 import { PremiosTab } from '@/components/porra/premios-tab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  BEST_THIRDS_COUNT,
   BRACKET_TAB_PHASE,
+  MATCHES_GROUP_STAGE,
+  MATCHES_KNOCKOUT,
   PORRA_TABS,
   type BracketTabId,
 } from '@/lib/constants';
@@ -77,10 +81,10 @@ type PorraStepperProps = {
 };
 
 const completionColor: Record<Completion, string> = {
-  complete: 'bg-green-500',
-  revisar: 'bg-orange-500',
-  partial: 'bg-amber-400',
-  empty: 'bg-zinc-300',
+  complete: 'bg-cromo-mint',
+  revisar: 'bg-amber-500',
+  partial: 'bg-cromo-coral',
+  empty: 'bg-slot',
 };
 
 const completionLabel: Record<Completion, string> = {
@@ -89,6 +93,12 @@ const completionLabel: Record<Completion, string> = {
   partial: 'incompleto',
   empty: 'sin rellenar',
 };
+
+// Total de cromos del álbum: suma de los slots de cada categoría (mismos máximos
+// que usa computePorraSummary para los gaps): 72 marcadores + 48 órdenes de grupo
+// (12×4) + 8 terceros + 32 cruces + 3 podio + 6 premios.
+const ALBUM_TOTAL_SLOTS =
+  MATCHES_GROUP_STAGE + 48 + BEST_THIRDS_COUNT + MATCHES_KNOCKOUT + 3 + 6;
 
 // Chasis del formulario de porra (slice 4). El tab "Grupos" ya tiene contenido
 // real (sub-slice 4.2); el resto sigue como placeholder hasta 4.3+.
@@ -335,13 +345,15 @@ export function PorraStepper({
     return tabHasData(key) ? 'partial' : 'empty';
   }
 
+  const albumFilled = ALBUM_TOTAL_SLOTS - summary.totalGaps;
+
   return (
     <div data-testid="porra-stepper" className="flex w-full max-w-3xl flex-col gap-4">
       {locked ? (
         <p
           role="status"
           data-testid="porra-banner"
-          className="rounded border border-amber-300 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-800"
+          className="rounded-[14px] border border-amber-400/40 bg-amber-400/10 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300"
         >
           BLOQUEADA — las predicciones ya no se pueden modificar.
         </p>
@@ -349,11 +361,15 @@ export function PorraStepper({
         <p
           role="status"
           data-testid="porra-banner"
-          className="rounded border border-zinc-300 bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-700"
+          className="rounded-[14px] border border-slot bg-surface px-4 py-2 text-sm font-medium text-ink-muted"
         >
-          PORRA INCOMPLETA — rellena todas las categorías antes del cierre.
+          PORRA INCOMPLETA — completa todas las categorías antes del cierre.
         </p>
       )}
+
+      {!locked ? (
+        <AlbumProgress filled={albumFilled} total={ALBUM_TOTAL_SLOTS} />
+      ) : null}
 
       <Tabs value={active} onValueChange={setActive}>
         <TabsList className="flex h-auto flex-wrap">
@@ -430,10 +446,10 @@ export function PorraStepper({
             ) : (
               <section
                 data-testid={`porra-panel-${tab.id}`}
-                className="rounded border border-zinc-200 p-6"
+                className="rounded-[14px] border border-slot p-6"
               >
-                <h2 className="text-lg font-semibold">{tab.label}</h2>
-                <p className="mt-2 text-zinc-500">Próximamente.</p>
+                <h2 className="text-lg font-semibold text-ink">{tab.label}</h2>
+                <p className="mt-2 text-ink-muted">Próximamente.</p>
               </section>
             )}
           </TabsContent>

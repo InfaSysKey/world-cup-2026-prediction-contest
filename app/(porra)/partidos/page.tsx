@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-import { Card } from '@/components/ui/card';
+import { Cromo } from '@/components/porra/cromo';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import {
   loadMatchCalendar,
@@ -29,15 +29,15 @@ const DATE_FORMAT = new Intl.DateTimeFormat('es-ES', {
 
 function PointsBadge({ points }: { points: number | null }) {
   if (points === null) {
-    return <span className="text-muted-foreground">—</span>;
+    return <span className="text-ink-muted">—</span>;
   }
   return (
     <span
       className={cn(
-        'tabular-nums font-semibold',
-        points > 0 && 'text-green-700',
-        points < 0 && 'text-red-700',
-        points === 0 && 'text-muted-foreground',
+        'font-mono tabular-nums font-semibold',
+        points > 0 && 'text-cromo-mint',
+        points < 0 && 'text-cromo-coral',
+        points === 0 && 'text-ink-muted',
       )}
     >
       {points > 0 ? `+${points}` : points} pts
@@ -47,19 +47,19 @@ function PointsBadge({ points }: { points: number | null }) {
 
 function MatchRow({ match }: { match: CalendarMatch }) {
   return (
-    <li className="flex flex-col gap-1 border-b py-2 last:border-0">
-      <div className="flex items-center justify-between gap-2 text-sm">
+    <li className="flex flex-col gap-1 border-b border-slot py-2 last:border-0">
+      <div className="flex items-center justify-between gap-2 text-sm text-ink">
         <span className="truncate">{match.home}</span>
-        <span className="shrink-0 font-medium tabular-nums">
+        <span className="shrink-0 font-mono font-medium tabular-nums">
           {match.officialResult ?? 'vs'}
         </span>
         <span className="truncate text-right">{match.away}</span>
       </div>
-      <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-2 text-xs text-ink-muted">
         <span>{DATE_FORMAT.format(match.scheduledAt)}</span>
         <span>
           Mi predicción:{' '}
-          <span className="font-medium text-foreground">
+          <span className="font-medium text-ink">
             {match.myPrediction ?? '—'}
           </span>
         </span>
@@ -86,9 +86,11 @@ export default async function PartidosPage() {
   return (
     <main className="flex flex-1 flex-col items-center gap-6 p-4 sm:p-8">
       <div className="w-full max-w-3xl">
-        <h1 className="mb-1 text-2xl font-semibold">Partidos</h1>
-        <p className="mb-4 text-sm text-muted-foreground">
-          Calendario, resultados oficiales, tu predicción y los puntos que sacaste.
+        <p className="text-eyebrow mb-1">El torneo</p>
+        <h1 className="text-display-l mb-2">Partidos</h1>
+        <p className="mb-4 text-sm text-ink-muted">
+          Calendario, resultados oficiales, tu predicción y los puntos que
+          sacaste.
         </p>
       </div>
 
@@ -99,14 +101,14 @@ export default async function PartidosPage() {
             return null;
           }
           return (
-            <Card key={phase} className="w-full max-w-3xl gap-2 p-4">
-              <h2 className="text-lg font-semibold">{label}</h2>
+            <Cromo key={phase} className="w-full max-w-3xl">
+              <h2 className="text-display-l mb-2 text-xl">{label}</h2>
               <ul className="flex flex-col">
                 {phaseMatches.map((m) => (
                   <MatchRow key={m.id} match={m} />
                 ))}
               </ul>
-            </Card>
+            </Cromo>
           );
         })}
       </div>

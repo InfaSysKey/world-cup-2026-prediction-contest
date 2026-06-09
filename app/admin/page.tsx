@@ -33,10 +33,10 @@ export default async function AdminDashboardPage() {
         {cards.map((card) => (
           <div
             key={card.label}
-            className="flex flex-col gap-1 rounded border border-zinc-200 p-4"
+            className="flex flex-col gap-1 rounded border border-slot p-4"
           >
             <span className="text-2xl font-semibold">{card.value}</span>
-            <span className="text-sm text-zinc-600">{card.label}</span>
+            <span className="text-sm text-ink-muted">{card.label}</span>
           </div>
         ))}
       </div>

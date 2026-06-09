@@ -137,8 +137,8 @@ test('§7.8: empate total → mismo rango y badge de sorteo pendiente', async ({
   const rowA = viewer.getByTestId('ranking-row').filter({ hasText: nickTieA });
   const rowB = viewer.getByTestId('ranking-row').filter({ hasText: nickTieB });
 
-  const rankA = (await rowA.locator('td').first().innerText()).trim();
-  const rankB = (await rowB.locator('td').first().innerText()).trim();
+  const rankA = (await rowA.getByTestId('ranking-rank').innerText()).trim();
+  const rankB = (await rowB.getByTestId('ranking-rank').innerText()).trim();
   expect(rankA).toBe(rankB);
 
   await expect(rowA.getByText('empate')).toBeVisible();

@@ -12,11 +12,16 @@ export default async function RegistroPage({
   if (!token) {
     return (
       <main className="flex flex-1 flex-col items-center justify-center gap-4 p-8 text-center">
-        <h1 className="text-2xl font-semibold">Invitación necesaria</h1>
-        <p className="text-zinc-600">
-          El registro es solo por invitación. Pide al organizador tu enlace.
+        <p className="text-eyebrow">Porra Mundial 2026</p>
+        <h1 className="text-display-l">Necesitas una invitación</h1>
+        <p className="text-ink-muted">
+          El álbum es solo por invitación. Pide al organizador tu enlace para
+          abrir tu primer sobre.
         </p>
-        <Link href="/login" className="text-sm font-medium underline">
+        <Link
+          href="/login"
+          className="text-sm font-medium text-cromo-cobalt underline"
+        >
           Ya tengo cuenta
         </Link>
       </main>

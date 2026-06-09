@@ -36,7 +36,7 @@ export function AwardForm({
           name="teamCode"
           defaultValue={currentTeamCode ?? ''}
           aria-label={label}
-          className="rounded border border-zinc-300 px-2 py-1"
+          className="rounded border border-slot px-2 py-1"
         >
           <option value="">—</option>
           {teams.map((team) => (
@@ -52,22 +52,22 @@ export function AwardForm({
           maxLength={80}
           placeholder="Nombre del jugador"
           aria-label={label}
-          className="rounded border border-zinc-300 px-2 py-1"
+          className="rounded border border-slot px-2 py-1"
         />
       )}
       <button
         type="submit"
         disabled={pending}
-        className="rounded bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
+        className="rounded bg-cromo-cobalt px-3 py-1 text-xs font-medium text-white disabled:opacity-50"
       >
         {pending ? 'Guardando…' : 'Guardar'}
       </button>
       {state.error ? (
-        <span role="alert" className="text-xs text-red-600">
+        <span role="alert" className="text-xs text-cromo-coral">
           {state.error.message}
         </span>
       ) : null}
-      {state.ok ? <span className="text-xs text-green-600">guardado</span> : null}
+      {state.ok ? <span className="text-xs text-cromo-mint">guardado</span> : null}
     </form>
   );
 }

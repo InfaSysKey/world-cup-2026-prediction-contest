@@ -44,7 +44,7 @@ function MatchList({ matches }: { matches: MatchWithTeams[] }) {
           return (
             <p
               key={match.id}
-              className="border-b border-zinc-100 py-2 text-sm text-zinc-400"
+              className="border-b border-slot py-2 text-sm text-ink-muted"
             >
               #{match.id} · {match.homeSlotRef ?? '?'} – {match.awaySlotRef ?? '?'}{' '}
               (pendiente de resolver)
@@ -84,7 +84,7 @@ export default async function PartidosPage() {
     <section className="flex flex-col gap-8">
       <div>
         <h1 className="text-xl font-semibold">Partidos</h1>
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-ink-muted">
           Introduce el marcador final. En grupos el ganador se calcula solo; en
           eliminatorias indícalo (puede venir de penaltis).
         </p>
@@ -99,7 +99,7 @@ export default async function PartidosPage() {
           }
           return (
             <div key={letter} className="flex flex-col gap-1">
-              <h3 className="text-sm font-semibold text-zinc-700">
+              <h3 className="text-sm font-semibold text-ink">
                 Grupo {letter}
               </h3>
               <MatchList matches={matches} />
@@ -117,7 +117,7 @@ export default async function PartidosPage() {
           }
           return (
             <div key={phase} className="flex flex-col gap-1">
-              <h3 className="text-sm font-semibold text-zinc-700">{label}</h3>
+              <h3 className="text-sm font-semibold text-ink">{label}</h3>
               <MatchList matches={matches} />
             </div>
           );

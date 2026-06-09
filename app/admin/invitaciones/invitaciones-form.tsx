@@ -24,20 +24,20 @@ export function InvitacionesForm() {
             name="note"
             maxLength={80}
             placeholder="Para quién es esta invitación"
-            className="rounded border border-zinc-300 px-3 py-2"
+            className="rounded border border-slot px-3 py-2"
           />
         </label>
         <button
           type="submit"
           disabled={pending}
-          className="rounded bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="rounded bg-cromo-cobalt px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {pending ? 'Generando…' : 'Generar invitación'}
         </button>
       </form>
 
       {state.error ? (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-cromo-coral">
           {state.error.message}
         </p>
       ) : null}

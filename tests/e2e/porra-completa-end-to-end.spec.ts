@@ -30,7 +30,7 @@ test('e2e-1 – porra completa coherente: footer verde y panel sin inconsistenci
 
   const footer = page.getByTestId('porra-sticky-footer');
   await expect(footer).toHaveAttribute('data-state', 'completa');
-  await expect(footer).toContainText('PORRA COMPLETA');
+  await expect(footer).toContainText('Álbum completo');
 
   await footer.click();
   await expect(page.getByTestId('porra-review-panel')).toBeVisible();
@@ -46,14 +46,14 @@ test('e2e-2 – rellenar el último hueco pasa el footer a verde', async ({
 
   const footer = page.getByTestId('porra-sticky-footer');
   await expect(footer).toHaveAttribute('data-state', 'incompleta');
-  await expect(footer).toContainText('INCOMPLETA');
+  await expect(footer).toContainText('Te faltan');
 
   await page.getByTestId('porra-tab-premios').click();
   await page.getByTestId('premios-input-ballBronze').fill('Crack 3');
   await waitForFreshSave(page, 'premios-autosave-status');
 
   await expect(footer).toHaveAttribute('data-state', 'completa');
-  await expect(footer).toContainText('PORRA COMPLETA');
+  await expect(footer).toContainText('Álbum completo');
 });
 
 test('e2e-3 – bracket incoherente con los grupos: footer REVISAR y panel lo lista', async ({

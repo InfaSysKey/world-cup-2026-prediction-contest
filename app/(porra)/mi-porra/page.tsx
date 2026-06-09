@@ -26,11 +26,12 @@ export default async function MiPorraPage() {
   return (
     <main className="flex flex-1 flex-col items-center gap-6 p-4 sm:p-8">
       <div className="w-full max-w-3xl">
-        <h1 className="text-2xl font-semibold">Mi porra</h1>
-        <p className="text-sm text-muted-foreground">
-          Vista de solo lectura. Para editar, ve a{' '}
-          <a href="/porra" className="underline">
-            rellenar porra
+        <p className="text-eyebrow mb-1">Tu álbum</p>
+        <h1 className="text-display-l">Mi porra</h1>
+        <p className="text-sm text-ink-muted">
+          Solo lectura. Para colocar o cambiar cromos, ve a{' '}
+          <a href="/porra" className="text-cromo-cobalt underline">
+            rellenar tu porra
           </a>
           .
         </p>

@@ -64,7 +64,7 @@ export default async function ClasificacionesPage() {
     <section className="flex flex-col gap-10">
       <div>
         <h1 className="text-xl font-semibold">Clasificaciones oficiales</h1>
-        <p className="text-sm text-zinc-600">
+        <p className="text-sm text-ink-muted">
           Introduce los resultados oficiales que usará el motor de puntos.
         </p>
       </div>

@@ -33,9 +33,14 @@ export default async function PorraPage() {
   const locks = loadAllLocks();
 
   return (
-    <main className="flex flex-1 flex-col items-center gap-6 p-8">
-      <header className="flex w-full max-w-3xl items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Hola, {user.nickname}</h1>
+    <main className="flex flex-1 flex-col items-center gap-6 p-4 sm:p-8">
+      <header className="flex w-full max-w-3xl flex-col gap-1">
+        <p className="text-eyebrow">Tu álbum</p>
+        <h1 className="text-display-l">Hola, {user.nickname}</h1>
+        <p className="text-sm text-ink-muted">
+          Coloca tus predicciones. Se guardan solas; vuelve cuando quieras hasta
+          el pitido inicial.
+        </p>
       </header>
 
       <PorraStepper

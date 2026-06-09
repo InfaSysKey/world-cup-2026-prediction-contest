@@ -33,7 +33,7 @@ export default async function InvitacionesPage() {
   return (
     <section className="flex flex-col gap-6">
       <h1 className="text-xl font-semibold">Invitaciones</h1>
-      <p className="text-sm text-zinc-600">
+      <p className="text-sm text-ink-muted">
         Genera un enlace de un solo uso. Se muestra una vez: cópialo y envíalo.
         Por seguridad, el enlace no se vuelve a mostrar después.
       </p>
@@ -41,7 +41,7 @@ export default async function InvitacionesPage() {
 
       <table className="w-full max-w-3xl border-collapse text-sm">
         <thead>
-          <tr className="border-b border-zinc-200 text-left text-zinc-600">
+          <tr className="border-b border-slot text-left text-ink-muted">
             <th className="py-2 pr-4 font-medium">#</th>
             <th className="py-2 pr-4 font-medium">Nota</th>
             <th className="py-2 pr-4 font-medium">Estado</th>
@@ -54,7 +54,7 @@ export default async function InvitacionesPage() {
             <tr
               key={inv.id}
               data-testid={`invitation-row-${inv.id}`}
-              className="border-b border-zinc-100"
+              className="border-b border-slot"
             >
               <td className="py-2 pr-4">{inv.id}</td>
               <td className="py-2 pr-4">{inv.note ?? '—'}</td>

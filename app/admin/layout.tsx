@@ -18,14 +18,14 @@ export default async function AdminLayout({
   await requireAdmin();
   return (
     <div className="flex min-h-full flex-col">
-      <header className="flex flex-col gap-2 border-b border-zinc-200 px-6 py-3">
+      <header className="flex flex-col gap-2 border-b border-slot px-6 py-3">
         <span className="text-sm font-semibold">Administración · Porra 2026</span>
         <nav className="flex flex-wrap gap-4 text-sm">
           {NAV.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className="text-zinc-600 hover:text-zinc-900"
+              className="text-ink-muted hover:text-ink"
             >
               {item.label}
             </Link>

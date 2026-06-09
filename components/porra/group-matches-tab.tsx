@@ -58,7 +58,7 @@ function toEntries(map: ScoreMap): GroupMatchPredictionInput[] {
 }
 
 const inputClass =
-  'h-11 w-14 rounded border border-zinc-300 px-2 text-center disabled:bg-zinc-100 disabled:text-zinc-400';
+  'h-11 w-14 rounded-md border border-slot bg-surface px-2 text-center text-ink tabular-nums disabled:opacity-50';
 
 export function GroupMatchesTab({
   catalog,
@@ -87,26 +87,35 @@ export function GroupMatchesTab({
 
   return (
     <div data-testid="group-matches-tab" className="flex flex-col gap-6">
-      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-zinc-200 bg-white py-2">
-        <p className="text-sm text-zinc-500">
-          Marcador exacto de cada partido de fase de grupos.
+      <div className="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-slot bg-bg py-2">
+        <p className="text-sm text-ink-muted">
+          Coloca el marcador exacto de cada partido de la fase de grupos.
         </p>
         <AutoSaveStatus status={status} locked={locked} onRetry={retry} />
       </div>
 
       {catalog.map((group) => (
         <section key={group.groupLetter} className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-zinc-700">
+          <h3 className="text-sm font-semibold text-ink">
             Grupo {group.groupLetter}
           </h3>
           <ul className="flex flex-col gap-1">
-            {group.matches.map((m) => (
+            {group.matches.map((m) => {
+              const placed =
+                (values[m.id]?.local ?? '') !== '' &&
+                (values[m.id]?.visitante ?? '') !== '';
+              return (
               <li
                 key={m.id}
                 data-testid={`gm-row-${m.id}`}
-                className="flex flex-wrap items-center gap-2 text-sm"
+                data-placed={placed}
+                className={`flex flex-wrap items-center gap-2 rounded-[14px] border px-2 py-1.5 text-sm transition-colors ${
+                  placed
+                    ? 'border-slot bg-surface'
+                    : 'border-dashed border-slot bg-bg'
+                }`}
               >
-                <span className="w-44 truncate text-right">
+                <span className="w-44 truncate text-right text-ink">
                   {m.homeFlag} {m.homeName}
                 </span>
                 <input
@@ -121,7 +130,7 @@ export function GroupMatchesTab({
                   onChange={(e) => update(m.id, 'local', e.target.value)}
                   className={inputClass}
                 />
-                <span className="text-zinc-400">–</span>
+                <span className="text-ink-muted">–</span>
                 <input
                   type="number"
                   min={0}
@@ -134,11 +143,12 @@ export function GroupMatchesTab({
                   onChange={(e) => update(m.id, 'visitante', e.target.value)}
                   className={inputClass}
                 />
-                <span className="w-44 truncate">
+                <span className="w-44 truncate text-ink">
                   {m.awayName} {m.awayFlag}
                 </span>
               </li>
-            ))}
+              );
+            })}
           </ul>
         </section>
       ))}
@@ -157,39 +167,40 @@ function AutoSaveStatus({
 }) {
   if (locked) {
     return (
-      <span className="text-xs font-medium text-amber-700">BLOQUEADA</span>
+      <span className="text-xs font-medium text-amber-600 dark:text-amber-300">
+        BLOQUEADA
+      </span>
     );
   }
   if (status === 'saving') {
     return (
-      <span data-testid="autosave-status" className="text-xs text-zinc-500">
+      <span data-testid="autosave-status" className="text-xs text-ink-muted">
         Guardando…
       </span>
     );
   }
   if (status === 'saved') {
     return (
-      <span data-testid="autosave-status" className="text-xs text-green-600">
+      <span data-testid="autosave-status" className="text-xs text-cromo-mint">
         Guardado
       </span>
     );
   }
   if (status === 'error') {
     return (
-      <span data-testid="autosave-status" className="flex items-center gap-2 text-xs text-red-600">
+      <span
+        data-testid="autosave-status"
+        className="flex items-center gap-2 text-xs text-cromo-coral"
+      >
         Error al guardar
-        <button
-          type="button"
-          onClick={onRetry}
-          className="underline"
-        >
+        <button type="button" onClick={onRetry} className="underline">
           Reintentar
         </button>
       </span>
     );
   }
   return (
-    <span data-testid="autosave-status" className="text-xs text-zinc-400">
+    <span data-testid="autosave-status" className="text-xs text-ink-muted">
       Sin cambios
     </span>
   );

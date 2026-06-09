@@ -23,45 +23,43 @@ type FooterStyle = {
   text: string;
 };
 
+// Voz de álbum (design-system §7): "te faltan N cromos" / "¡álbum completo!" /
+// "revisar". El color sigue el estado (mint completo, coral huecos, ámbar revisar)
+// y los data-state se conservan para el contrato de los e2e.
 function footerStyle(summary: PorraSummary): FooterStyle {
   const { totalGaps, totalMismatches } = summary;
+
+  const cromos = (n: number) => `${n} ${n === 1 ? 'cromo' : 'cromos'}`;
+  const porRevisar = (n: number) => `${n} por revisar`;
 
   if (totalGaps === 0 && totalMismatches === 0) {
     return {
       testidState: 'completa',
-      className: 'border-green-300 bg-green-50 text-green-800',
-      text: 'PORRA COMPLETA ✓',
+      className: 'border-cromo-mint/40 bg-cromo-mint/10 text-cromo-mint',
+      text: '¡Álbum completo!',
     };
   }
 
   if (totalGaps > 0 && totalMismatches > 0) {
     return {
       testidState: 'mixta',
-      className: 'border-orange-300 bg-orange-50 text-orange-800',
-      text: `INCOMPLETA + REVISAR — ${totalGaps} ${
-        totalGaps === 1 ? 'hueco' : 'huecos'
-      }, ${totalMismatches} ${
-        totalMismatches === 1 ? 'inconsistencia' : 'inconsistencias'
-      }`,
+      className: 'border-amber-400/40 bg-amber-400/10 text-amber-700 dark:text-amber-300',
+      text: `Te faltan ${cromos(totalGaps)} · ${porRevisar(totalMismatches)}`,
     };
   }
 
   if (totalMismatches > 0) {
     return {
       testidState: 'revisar',
-      className: 'border-orange-300 bg-orange-50 text-orange-800',
-      text: `REVISAR — ${totalMismatches} ${
-        totalMismatches === 1 ? 'inconsistencia' : 'inconsistencias'
-      }`,
+      className: 'border-amber-400/40 bg-amber-400/10 text-amber-700 dark:text-amber-300',
+      text: `Revisar — ${porRevisar(totalMismatches)}`,
     };
   }
 
   return {
     testidState: 'incompleta',
-    className: 'border-amber-300 bg-amber-50 text-amber-800',
-    text: `INCOMPLETA — faltan ${totalGaps} ${
-      totalGaps === 1 ? 'predicción' : 'predicciones'
-    }`,
+    className: 'border-cromo-coral/40 bg-cromo-coral/10 text-cromo-coral',
+    text: `Te faltan ${cromos(totalGaps)}`,
   };
 }
 
