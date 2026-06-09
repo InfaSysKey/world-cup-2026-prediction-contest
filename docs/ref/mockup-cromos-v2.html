@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Porra 2026 — diseño v2</title>
+<link href="https://api.fontshare.com/v2/css?f[]=clash-display@500,600,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --cobalt:#2347E8; --coral:#FF5A47; --gold:#E8B445; --mint:#27C29A;
+    --bg:#ECEEE6; --surface:#FFFFFF; --slot:#D6D8CE; --ink:#181A28; --muted:#6B6E7D;
+    --silver:#C7CBD4; --bronze:#CC8B5C;
+    --shadow:0 1px 2px rgba(24,26,40,.06),0 8px 22px -8px rgba(24,26,40,.16);
+    --shadow-hi:0 3px 6px rgba(24,26,40,.10),0 22px 48px -14px rgba(24,26,40,.34);
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,monospace;
+    --display:"Clash Display",var(--sans);
+    --paper:radial-gradient(circle at 1px 1px,rgba(24,26,40,.035) 1px,transparent 0);
+  }
+  [data-theme="dark"]{
+    --bg:#121320; --surface:#1D1F2B; --slot:#2C2E3C; --ink:#F1F2EC; --muted:#9A9DAB;
+    --cobalt:#5A77FF; --coral:#FF7060; --gold:#F2C863; --mint:#3DD6AC;
+    --silver:#A7ACBD; --bronze:#D89A6A;
+    --shadow:0 1px 2px rgba(0,0,0,.45),0 10px 26px -10px rgba(0,0,0,.6);
+    --shadow-hi:0 3px 8px rgba(0,0,0,.55),0 24px 50px -14px rgba(0,0,0,.72);
+    --paper:radial-gradient(circle at 1px 1px,rgba(255,255,255,.03) 1px,transparent 0);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);background-image:var(--paper);background-size:23px 23px;
+    color:var(--ink);font-family:var(--sans);-webkit-font-smoothing:antialiased;
+    padding:0 0 56px;transition:background .3s,color .3s}
+  .wrap{max-width:430px;margin:0 auto;padding:0 16px}
+
+  header{position:sticky;top:0;z-index:30;
+    background:color-mix(in srgb,var(--bg) 85%,transparent);backdrop-filter:blur(12px) saturate(1.4);
+    border-bottom:1px solid color-mix(in srgb,var(--ink) 7%,transparent)}
+  .nav{max-width:430px;margin:0 auto;display:flex;align-items:center;gap:5px;padding:11px 16px}
+  .brand{font-family:var(--display);font-weight:700;font-size:19px;letter-spacing:-.02em;margin-right:auto;
+    display:flex;align-items:center;gap:7px}
+  .brand .dot{width:9px;height:9px;border-radius:50%;
+    background:linear-gradient(135deg,var(--coral),var(--gold))}
+  .nav a{font-size:13px;color:var(--muted);text-decoration:none;padding:7px 10px;border-radius:9px;
+    font-weight:500;transition:.15s}
+  .nav a.on{color:var(--ink);background:color-mix(in srgb,var(--ink) 7%,transparent)}
+  .nav a.admin{color:var(--cobalt)}
+  .nav a:hover{color:var(--ink)}
+  .toggle{border:none;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink);
+    width:34px;height:34px;border-radius:9px;cursor:pointer;font-size:15px;display:grid;place-items:center;
+    transition:.15s}
+  .toggle:active{transform:scale(.92)}
+
+  .eyebrow{font-size:11.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);
+    font-weight:500;margin:26px 0 5px}
+  h2{font-family:var(--display);font-weight:600;font-size:28px;letter-spacing:-.025em;margin-bottom:16px}
+
+  /* progreso */
+  .prog{display:flex;justify-content:space-between;font-size:13px;color:var(--muted);font-weight:500;margin:2px 0 8px}
+  .prog b{color:var(--ink);font-weight:600}
+  .bar{height:11px;border-radius:7px;background:color-mix(in srgb,var(--ink) 8%,transparent);
+    overflow:hidden;position:relative}
+  .bar i{display:block;height:100%;width:61%;border-radius:7px;position:relative;
+    background:linear-gradient(90deg,var(--mint),color-mix(in srgb,var(--mint) 55%,var(--cobalt)))}
+  .bar i::after{content:"";position:absolute;inset:0;border-radius:7px;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+    background-size:60% 100%;background-repeat:no-repeat;animation:sweep 2.6s ease-in-out infinite}
+  @keyframes sweep{0%{background-position:-60% 0}60%,100%{background-position:160% 0}}
+
+  /* CROMO partido */
+  .cromo{position:relative;background:var(--surface);border-radius:18px;box-shadow:var(--shadow);
+    padding:18px 16px 16px;margin-bottom:13px;overflow:hidden;
+    border:1px solid color-mix(in srgb,var(--ink) 6%,transparent);
+    transition:transform .2s cubic-bezier(.2,.8,.2,1),box-shadow .2s}
+  .cromo::before{content:"";position:absolute;inset:1px 1px auto 1px;height:44%;
+    border-radius:17px 17px 45% 45%;pointer-events:none;
+    background:linear-gradient(180deg,rgba(255,255,255,.6),transparent)}
+  [data-theme="dark"] .cromo::before{background:linear-gradient(180deg,rgba(255,255,255,.06),transparent)}
+  .cromo .gleam{content:"";position:absolute;top:0;left:-60%;width:50%;height:100%;pointer-events:none;
+    background:linear-gradient(105deg,transparent,rgba(255,255,255,.45),transparent);
+    transition:left .5s ease;opacity:.7}
+  .cromo:hover{transform:translateY(-3px);box-shadow:var(--shadow-hi)}
+  .cromo:hover .gleam{left:120%}
+  .num{position:absolute;top:0;left:14px;font-family:var(--display);font-weight:700;font-size:11px;
+    color:var(--muted);background:color-mix(in srgb,var(--ink) 6%,transparent);
+    padding:3px 8px 4px;border-radius:0 0 8px 8px}
+  .state{position:absolute;top:11px;right:14px;font-size:11px;font-weight:600;color:var(--mint);
+    display:flex;align-items:center;gap:3px}
+  .duel{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:10px}
+  .team{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+  .team img{width:40px;height:28px;border-radius:5px;object-fit:cover;box-shadow:0 1px 3px rgba(0,0,0,.28)}
+  .team span{font-size:13px;font-weight:500;line-height:1.15;max-width:96px}
+  .score{display:flex;align-items:center;gap:7px}
+  .score input{width:48px;height:56px;border-radius:14px;border:1.5px solid var(--slot);background:var(--bg);
+    color:var(--ink);font-family:var(--mono);font-size:25px;font-weight:600;text-align:center;transition:.16s}
+  .score input:focus{outline:none;border-color:var(--cobalt);
+    box-shadow:0 0 0 4px color-mix(in srgb,var(--cobalt) 18%,transparent);transform:scale(1.05)}
+  .dash{color:var(--muted);font-weight:600;font-size:19px}
+  .cromo.empty{box-shadow:none;background:transparent;border:1.5px dashed var(--slot)}
+  .cromo.empty::before,.cromo.empty .gleam,.cromo.empty .state{display:none}
+  .cromo.empty .score input{border-style:dashed;background:transparent}
+
+  /* PODIO */
+  .podium-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:13px}
+
+  .foil{position:relative;border-radius:21px;padding:2.5px;margin-bottom:13px;
+    box-shadow:var(--shadow-hi);transform-style:preserve-3d;transition:transform .25s ease;
+    --mx:50%;--my:40%}
+  .foil .holo{position:absolute;inset:0;border-radius:21px;overflow:hidden}
+  .foil .holo::before{content:"";position:absolute;inset:-30%;
+    background:conic-gradient(from 0deg,#E8B445,#FF5A47,#B45CFF,#2347E8,#27C29A,#E8B445);
+    animation:spin 7s linear infinite;opacity:.95}
+  .foil .holo::after{content:"";position:absolute;inset:0;
+    background:repeating-linear-gradient(115deg,transparent 0 6px,rgba(255,255,255,.22) 6px 8px);
+    mix-blend-mode:overlay}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .foil-inner{position:relative;background:var(--surface);border-radius:18.5px;padding:16px 18px;
+    display:flex;align-items:center;gap:13px;z-index:1}
+  .foil-inner::after{content:"";position:absolute;inset:0;border-radius:18.5px;pointer-events:none;
+    background:radial-gradient(circle at var(--mx) var(--my),rgba(255,255,255,.55),transparent 45%)}
+  .crown{position:absolute;top:-9px;left:50%;transform:translateX(-50%);font-size:15px;z-index:2;
+    filter:drop-shadow(0 2px 3px rgba(0,0,0,.3))}
+
+  .rank{font-family:var(--display);font-weight:700;line-height:1;text-align:center}
+  .rank.r1{font-size:36px;color:var(--gold)}
+  .ava{border-radius:50%;display:grid;place-items:center;font-family:var(--display);font-weight:700;
+    color:#fff;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+  .ava.big{width:48px;height:48px;font-size:18px}
+  .who{margin-right:auto;min-width:0}
+  .who b{font-family:var(--display);font-weight:600;font-size:18px;display:block;letter-spacing:-.01em}
+  .who small{font-size:12px;color:var(--muted)}
+  .pts{font-family:var(--mono);font-weight:600;font-size:22px;font-variant-numeric:tabular-nums;text-align:right}
+  .pts small{display:block;font-family:var(--sans);font-size:10.5px;color:var(--muted);font-weight:500}
+  .delta{font-size:10.5px;font-weight:600}
+  .delta.up{color:var(--mint)} .delta.down{color:var(--coral)}
+
+  /* medalla plata/bronce */
+  .medal{position:relative;background:var(--surface);border-radius:17px;box-shadow:var(--shadow);
+    padding:14px;display:flex;align-items:center;gap:11px;overflow:hidden;
+    border:1px solid color-mix(in srgb,var(--ink) 6%,transparent);transition:transform .18s,box-shadow .18s}
+  .medal::before{content:"";position:absolute;inset:0;opacity:.5;pointer-events:none}
+  .medal.silver::before{background:linear-gradient(135deg,color-mix(in srgb,var(--silver) 40%,transparent),transparent 55%)}
+  .medal.bronze::before{background:linear-gradient(135deg,color-mix(in srgb,var(--bronze) 32%,transparent),transparent 55%)}
+  .medal:hover{transform:translateY(-2px);box-shadow:var(--shadow-hi)}
+  .medal .rank{font-size:26px}
+  .medal.silver .rank{color:var(--silver)} .medal.bronze .rank{color:var(--bronze)}
+  .medal .ava{width:38px;height:38px;font-size:15px}
+  .medal .who b{font-size:15px} .medal .pts{font-size:17px}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .pcard{position:relative;background:var(--surface);border-radius:15px;box-shadow:var(--shadow);padding:13px;
+    border:1px solid color-mix(in srgb,var(--ink) 6%,transparent);display:flex;align-items:center;gap:9px;
+    transition:transform .18s,box-shadow .18s}
+  .pcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-hi)}
+  .pcard .rank{font-size:19px;color:var(--muted)}
+  .pcard .ava{width:34px;height:34px;font-size:13px}
+  .pcard .who b{font-size:13.5px} .pcard .pts{font-size:15px}
+
+  @media (prefers-reduced-motion:reduce){
+    .foil .holo::before,.bar i::after{animation:none}
+    .foil,.cromo,.pcard,.medal,.gleam{transition:none}
+  }
+</style>
+</head>
+<body>
+<header>
+  <nav class="nav">
+    <span class="brand"><span class="dot"></span>Porra 26</span>
+    <a href="#" class="on">Clasificación</a>
+    <a href="#">Mi porra</a>
+    <a href="#">Partidos</a>
+    <a href="#" class="admin">Admin</a>
+    <button class="toggle" id="tg" aria-label="Cambiar tema">🌙</button>
+  </nav>
+</header>
+
+<div class="wrap">
+
+  <p class="eyebrow">Tu álbum · jornada 3</p>
+  <h2>Tu porra</h2>
+  <div class="prog"><span><b>61%</b> del álbum</span><span>te faltan <b>66</b> cromos</span></div>
+  <div class="bar"><i></i></div>
+
+  <p class="eyebrow" style="margin-top:24px">Grupo A · coloca el marcador exacto</p>
+
+  <div class="cromo">
+    <span class="num">CROMO 01</span><span class="state">✓ colocado</span><span class="gleam"></span>
+    <div class="duel">
+      <div class="team"><img src="https://flagcdn.com/w40/mx.png" alt=""><span>México</span></div>
+      <div class="score"><input value="2"><span class="dash">–</span><input value="2"></div>
+      <div class="team"><img src="https://flagcdn.com/w40/za.png" alt=""><span>Sudáfrica</span></div>
+    </div>
+  </div>
+
+  <div class="cromo">
+    <span class="num">CROMO 02</span><span class="state">✓ colocado</span><span class="gleam"></span>
+    <div class="duel">
+      <div class="team"><img src="https://flagcdn.com/w40/kr.png" alt=""><span>Corea del Sur</span></div>
+      <div class="score"><input value="2"><span class="dash">–</span><input value="1"></div>
+      <div class="team"><img src="https://flagcdn.com/w40/cz.png" alt=""><span>Rep. Checa</span></div>
+    </div>
+  </div>
+
+  <div class="cromo empty">
+    <span class="num">CROMO 03</span>
+    <div class="duel">
+      <div class="team"><img src="https://flagcdn.com/w40/cz.png" alt=""><span>Rep. Checa</span></div>
+      <div class="score"><input placeholder="?"><span class="dash">–</span><input placeholder="?"></div>
+      <div class="team"><img src="https://flagcdn.com/w40/za.png" alt=""><span>Sudáfrica</span></div>
+    </div>
+  </div>
+
+  <p class="eyebrow" style="margin-top:30px">Clasificación general · inclina el cromo 👆</p>
+  <h2 style="margin-bottom:14px">El podio</h2>
+
+  <div class="foil" id="foil">
+    <span class="crown">👑</span>
+    <div class="holo"></div>
+    <div class="foil-inner">
+      <span class="rank r1">1</span>
+      <span class="ava big" style="background:var(--cobalt)">CC</span>
+      <span class="who"><b>elcura</b><small>Carlos C.</small></span>
+      <span class="pts">287<small><span class="delta up">▲ +14</span></small></span>
+    </div>
+  </div>
+
+  <div class="podium-row">
+    <div class="medal silver">
+      <span class="rank">2</span><span class="ava" style="background:var(--coral)">JM</span>
+      <span class="who"><b>juanma</b></span><span class="pts">241</span>
+    </div>
+    <div class="medal bronze">
+      <span class="rank">3</span><span class="ava" style="background:var(--mint)">RP</span>
+      <span class="who"><b>rauper</b></span><span class="pts">230</span>
+    </div>
+  </div>
+
+  <div class="grid2">
+    <div class="pcard"><span class="rank">4</span><span class="ava" style="background:var(--gold)">LF</span><span class="who"><b>laufer</b></span><span class="pts">218<small><span class="delta down">▼ 2</span></small></span></div>
+    <div class="pcard"><span class="rank">5</span><span class="ava" style="background:#8B5CF6">SG</span><span class="who"><b>sergi</b></span><span class="pts">205<small><span class="delta up">▲ 1</span></small></span></div>
+    <div class="pcard"><span class="rank">6</span><span class="ava" style="background:#0EA5A4">MA</span><span class="who"><b>marta</b></span><span class="pts">198</span></div>
+    <div class="pcard"><span class="rank">7</span><span class="ava" style="background:var(--coral)">DV</span><span class="who"><b>davo</b></span><span class="pts">187</span></div>
+  </div>
+
+</div>
+
+<script>
+  const b=document.documentElement,t=document.getElementById('tg');
+  t.onclick=()=>{const d=b.getAttribute('data-theme')==='dark';b.setAttribute('data-theme',d?'light':'dark');t.textContent=d?'🌙':'☀️';};
+
+  const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  const f=document.getElementById('foil');
+  if(f&&!reduce){
+    const move=e=>{
+      const r=f.getBoundingClientRect();
+      const p=(e.touches?e.touches[0]:e);
+      const x=(p.clientX-r.left)/r.width, y=(p.clientY-r.top)/r.height;
+      f.style.transform=`perspective(700px) rotateY(${(x-.5)*16}deg) rotateX(${(.5-y)*16}deg)`;
+      f.style.setProperty('--mx',(x*100)+'%');
+      f.style.setProperty('--my',(y*100)+'%');
+    };
+    const reset=()=>{f.style.transform='';f.style.setProperty('--mx','50%');f.style.setProperty('--my','40%');};
+    f.addEventListener('pointermove',move);
+    f.addEventListener('pointerleave',reset);
+    f.addEventListener('touchmove',e=>{move(e);e.preventDefault();},{passive:false});
+    f.addEventListener('touchend',reset);
+  }
+</script>
+</body>
+</html>
