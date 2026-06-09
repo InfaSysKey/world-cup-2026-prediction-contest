@@ -1,6 +1,6 @@
 'use server';
 
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, ne, notInArray } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 
 import { getCurrentUser } from '@/lib/auth/current-user';
@@ -27,7 +27,7 @@ import {
   bestThirdsBatchSchema,
   groupMatchPredictionsBatchSchema,
   groupStandingsBatchSchema,
-  knockoutPredictionSchema,
+  knockoutPredictionsBatchSchema,
   playerAwardsPredictionSchema,
   podiumPredictionSchema,
 } from '@/lib/validators/predictions';
@@ -66,20 +66,25 @@ export async function saveGroupMatchPredictions(
   if (!parsed.success) {
     return { error: { code: 'INVALID_INPUT', message: 'Datos inválidos.' } };
   }
-  if (parsed.data.length === 0) {
-    return { data: { saved: 0 } };
-  }
+
+  const incomingIds = parsed.data.map((p) => p.matchId);
 
   // Solo se aceptan partidos de fase de grupos (no knockouts ni ids inventados).
-  const groupMatchRows = await db
-    .select({ id: matches.id })
-    .from(matches)
-    .where(eq(matches.phase, 'grupos'));
-  const groupMatchIds = new Set(groupMatchRows.map((m) => m.id));
-  if (!parsed.data.every((p) => groupMatchIds.has(p.matchId))) {
-    return { error: { code: 'INVALID_INPUT', message: 'Algún partido no es de fase de grupos.' } };
+  if (parsed.data.length > 0) {
+    const groupMatchRows = await db
+      .select({ id: matches.id })
+      .from(matches)
+      .where(eq(matches.phase, 'grupos'));
+    const groupMatchIds = new Set(groupMatchRows.map((m) => m.id));
+    if (!parsed.data.every((p) => groupMatchIds.has(p.matchId))) {
+      return { error: { code: 'INVALID_INPUT', message: 'Algún partido no es de fase de grupos.' } };
+    }
   }
 
+  // El batch trae SIEMPRE el set completo de marcadores rellenos. Reescribimos el
+  // estado del usuario: upsert de los presentes + borrado de las filas que ya no
+  // llegan (un marcador que el usuario vació). Sin ese borrado, vaciar un marcador
+  // no se reflejaría en BD (MAYOR 1 del informe ultracode).
   try {
     await db.transaction(async (tx) => {
       for (const p of parsed.data) {
@@ -103,6 +108,14 @@ export async function saveGroupMatchPredictions(
             },
           });
       }
+      await tx.delete(predictionsGroupMatches).where(
+        incomingIds.length > 0
+          ? and(
+              eq(predictionsGroupMatches.userId, user.id),
+              notInArray(predictionsGroupMatches.matchId, incomingIds),
+            )
+          : eq(predictionsGroupMatches.userId, user.id),
+      );
     });
   } catch (err) {
     logger.error('saveGroupMatchPredictions failed', { err, userId: user.id });
@@ -341,12 +354,15 @@ export async function savePlayerAwardsPrediction(
 
 // --- Bracket eliminatorio (predictions_knockout) ---
 
-// Una predicción por cruce: el usuario pulsa el ganador y se guarda al vuelo.
-// Bracket RÍGIDO (ADR 0003): NO validamos que el equipo elegido juegue realmente
-// ese cruce según el resto de predicciones; esa coherencia es warning cross-tab
-// y se refleja en el resumen global (sub-slice 4.8). Aquí solo: el partido es de
-// eliminatorias y el equipo existe en el catálogo.
-export async function saveKnockoutPrediction(
+// El bracket guarda SIEMPRE el snapshot completo de picks del usuario (no deltas
+// sueltos): así el autosave puede colapsar pulsaciones rápidas sin perder ninguna
+// (CRÍTICO 1 del informe ultracode; antes una acción por cruce hacía que el
+// debounce de un solo slot descartara todos los picks menos el último). Bracket
+// RÍGIDO (ADR 0003): NO validamos que el equipo juegue realmente ese cruce; esa
+// coherencia es warning cross-tab (resumen global, 4.8). Aquí solo: cada cruce es
+// de eliminatorias y cada equipo existe en el catálogo. El usuario no puede
+// "despicar" un cruce, así que el snapshot solo crece: basta upsert (sin borrado).
+export async function saveKnockoutPredictions(
   input: unknown,
 ): Promise<ApiResult<{ saved: number }>> {
   const user = await getCurrentUser();
@@ -360,51 +376,57 @@ export async function saveKnockoutPrediction(
     };
   }
 
-  const parsed = knockoutPredictionSchema.safeParse(input);
+  const parsed = knockoutPredictionsBatchSchema.safeParse(input);
   if (!parsed.success) {
     return { error: { code: 'INVALID_INPUT', message: 'Datos inválidos.' } };
   }
+  if (parsed.data.length === 0) {
+    return { data: { saved: 0 } };
+  }
 
-  const [matchRow] = await db
-    .select({ id: matches.id, phase: matches.phase })
+  const knockoutRows = await db
+    .select({ id: matches.id })
     .from(matches)
-    .where(eq(matches.id, parsed.data.matchId));
-  if (!matchRow || matchRow.phase === 'grupos') {
+    .where(ne(matches.phase, 'grupos'));
+  const knockoutIds = new Set(knockoutRows.map((m) => m.id));
+  if (!parsed.data.every((p) => knockoutIds.has(p.matchId))) {
     return {
-      error: { code: 'INVALID_INPUT', message: 'El cruce no es de eliminatorias.' },
+      error: { code: 'INVALID_INPUT', message: 'Algún cruce no es de eliminatorias.' },
     };
   }
 
-  const [teamRow] = await db
-    .select({ code: teams.code })
-    .from(teams)
-    .where(eq(teams.code, parsed.data.winnerTeamCode));
-  if (!teamRow) {
+  const teamRows = await db.select({ code: teams.code }).from(teams);
+  const knownCodes = new Set(teamRows.map((t) => t.code));
+  if (!parsed.data.every((p) => knownCodes.has(p.winnerTeamCode))) {
     return { error: { code: 'INVALID_INPUT', message: 'Algún equipo no existe.' } };
   }
 
   try {
-    await db
-      .insert(predictionsKnockout)
-      .values({
-        userId: user.id,
-        matchId: parsed.data.matchId,
-        winnerTeamCode: parsed.data.winnerTeamCode,
-      })
-      .onConflictDoUpdate({
-        target: [predictionsKnockout.userId, predictionsKnockout.matchId],
-        set: {
-          winnerTeamCode: parsed.data.winnerTeamCode,
-          updatedAt: new Date(),
-        },
-      });
+    await db.transaction(async (tx) => {
+      for (const p of parsed.data) {
+        await tx
+          .insert(predictionsKnockout)
+          .values({
+            userId: user.id,
+            matchId: p.matchId,
+            winnerTeamCode: p.winnerTeamCode,
+          })
+          .onConflictDoUpdate({
+            target: [predictionsKnockout.userId, predictionsKnockout.matchId],
+            set: {
+              winnerTeamCode: p.winnerTeamCode,
+              updatedAt: new Date(),
+            },
+          });
+      }
+    });
   } catch (err) {
-    logger.error('saveKnockoutPrediction failed', { err, userId: user.id });
+    logger.error('saveKnockoutPredictions failed', { err, userId: user.id });
     return internalError();
   }
 
   revalidatePath('/porra');
-  return { data: { saved: 1 } };
+  return { data: { saved: parsed.data.length } };
 }
 
 // --- Orden de cada grupo (predictions_group_standings) ---

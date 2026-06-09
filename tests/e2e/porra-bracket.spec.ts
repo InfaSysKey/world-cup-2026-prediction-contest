@@ -86,3 +86,38 @@ test('bracket-3 – sin standings, los lados de 1/16 salen pendientes', async ({
     page.getByTestId('bracket-side-pending-73-away'),
   ).toBeVisible();
 });
+
+test('bracket-4 – pulsar varios cruces seguidos (sin esperar entre clics) persiste todos', async ({
+  browser,
+}) => {
+  const { page, email } = await registerAndLandIdentity(browser);
+  await seedStandingsAndThirds(email);
+  await page.reload();
+
+  await page.getByTestId('porra-tab-dieciseisavos').click();
+  await expect(page.getByTestId('porra-panel-dieciseisavos')).toBeVisible();
+
+  // Tres ganadores seguidos SIN esperar el autosave entre clics (uso real). Con
+  // el bug CRÍTICO 1 (una acción por cruce + debounce de un solo slot) solo
+  // habría persistido el último; el autosave por snapshot completo los guarda.
+  await page.getByTestId('bracket-pick-73-home').click();
+  await page.getByTestId('bracket-pick-74-home').click();
+  await page.getByTestId('bracket-pick-75-home').click();
+
+  await waitForFreshSave(page, 'bracket-autosave-status');
+
+  await page.reload();
+  await page.getByTestId('porra-tab-dieciseisavos').click();
+  await expect(page.getByTestId('bracket-pick-73-home')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByTestId('bracket-pick-74-home')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.getByTestId('bracket-pick-75-home')).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+});

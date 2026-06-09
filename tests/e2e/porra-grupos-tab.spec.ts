@@ -170,3 +170,34 @@ test('grupos – persistencia entre tabs: datos del tab Grupos sobreviven al cam
   await expect(page.getByTestId('gm-local-1')).toHaveValue('2');
   await expect(page.getByTestId('gm-visitante-1')).toHaveValue('2');
 });
+
+// ---------------------------------------------------------------------------
+// Test 7 (MAYOR 1): vaciar un marcador guardado lo elimina en BD
+// ---------------------------------------------------------------------------
+test('grupos – vaciar un marcador previamente guardado lo elimina tras recarga', async ({
+  browser,
+}) => {
+  const page = await registerAndLand(browser);
+  await expect(page.getByTestId('group-matches-tab')).toBeVisible();
+
+  // Guardar el marcador del partido 1 y confirmar que persiste.
+  await page.getByTestId('gm-local-1').fill('2');
+  await page.getByTestId('gm-visitante-1').fill('1');
+  await expect(page.getByTestId('autosave-status')).toHaveText('Guardado', {
+    timeout: 6000,
+  });
+  await page.reload();
+  await expect(page.getByTestId('gm-local-1')).toHaveValue('2');
+
+  // Vaciar ambos campos: el batch deja de incluir el partido 1 → la fila se borra.
+  await page.getByTestId('gm-local-1').fill('');
+  await page.getByTestId('gm-visitante-1').fill('');
+  await expect(page.getByTestId('autosave-status')).toHaveText('Guardado', {
+    timeout: 6000,
+  });
+
+  // Tras recargar, el marcador ya no reaparece (antes el upsert dejaba el 2–1).
+  await page.reload();
+  await expect(page.getByTestId('gm-local-1')).toHaveValue('');
+  await expect(page.getByTestId('gm-visitante-1')).toHaveValue('');
+});

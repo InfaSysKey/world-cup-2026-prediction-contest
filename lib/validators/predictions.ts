@@ -143,6 +143,27 @@ export const knockoutPredictionSchema = z.object({
 });
 export type KnockoutPredictionInput = z.infer<typeof knockoutPredictionSchema>;
 
+// El bracket guarda SIEMPRE el snapshot completo de picks (no deltas sueltos):
+// así el autosave puede colapsar pulsaciones rápidas sin perder ninguna
+// (CRÍTICO 1 del informe ultracode). El matchId no puede repetirse en el batch.
+export const knockoutPredictionsBatchSchema = z
+  .array(knockoutPredictionSchema)
+  .superRefine((entries, ctx) => {
+    const seen = new Set<number>();
+    for (const e of entries) {
+      if (seen.has(e.matchId)) {
+        ctx.addIssue({
+          code: 'custom',
+          message: `Cruce ${e.matchId} repetido en el batch.`,
+        });
+      }
+      seen.add(e.matchId);
+    }
+  });
+export type KnockoutPredictionsBatchInput = z.infer<
+  typeof knockoutPredictionsBatchSchema
+>;
+
 // --- Podio (predictions_awards, kinds champion/runner_up/third) ---
 
 // El podio se guarda como un único objeto con los 3 puestos para validar la

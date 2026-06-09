@@ -1,10 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
-  saveKnockoutPrediction,
+  saveKnockoutPredictions,
   savePodiumPrediction,
 } from '@/app/(porra)/porra/actions';
 import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
@@ -126,6 +126,13 @@ export function PorraStepper({
       winnerTeamCode: k.winnerTeamCode,
     })),
   );
+  // Snapshot vivo de los picks: onPick acumula sobre el ref para que pulsaciones
+  // muy seguidas no dependan del re-render entre clics. El autosave guarda el
+  // snapshot COMPLETO, nunca un delta suelto (CRÍTICO 1).
+  const knockoutRef = useRef(knockout);
+  useEffect(() => {
+    knockoutRef.current = knockout;
+  }, [knockout]);
 
   const resolution = useMemo(
     () =>
@@ -145,8 +152,8 @@ export function PorraStepper({
     ],
   );
 
-  const onSaveKnockout = useCallback(async (pick: KnockoutPickRef) => {
-    const res = await saveKnockoutPrediction(pick);
+  const onSaveKnockout = useCallback(async (picks: KnockoutPickRef[]) => {
+    const res = await saveKnockoutPredictions(picks);
     if (res.error) {
       throw new Error(res.error.message);
     }
@@ -156,19 +163,22 @@ export function PorraStepper({
     status: knockoutStatus,
     save: saveKnockout,
     retry: retryKnockout,
-  } = useAutoSave<KnockoutPickRef>(onSaveKnockout);
+  } = useAutoSave<KnockoutPickRef[]>(onSaveKnockout);
 
   const onPick = useCallback(
     (matchId: number, winnerTeamCode: string) => {
       if (locked) {
         return;
       }
-      setKnockout((prev) => {
-        const next = prev.filter((p) => p.matchId !== matchId);
-        next.push({ matchId, winnerTeamCode });
-        return next;
-      });
-      saveKnockout({ matchId, winnerTeamCode });
+      // Acumula sobre el snapshot vivo y manda el set COMPLETO al autosave: por
+      // mucho que se coalescan pulsaciones rápidas, no se pierde ningún pick.
+      const next = [
+        ...knockoutRef.current.filter((p) => p.matchId !== matchId),
+        { matchId, winnerTeamCode },
+      ];
+      knockoutRef.current = next;
+      setKnockout(next);
+      saveKnockout(next);
     },
     [locked, saveKnockout],
   );
