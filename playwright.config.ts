@@ -26,6 +26,11 @@ export default defineConfig({
   testDir: './tests/e2e',
   globalSetup: './tests/e2e/global-setup.ts',
   fullyParallel: false,
+  // Un solo dev server + una BD compartida: con varios workers (el default es
+  // ~nº de CPUs) el servidor se satura y los registros/navegaciones expiran bajo
+  // carga, volviendo la suite flaky. Serializamos para que sea determinista; se
+  // puede subir puntualmente con `--workers=N`.
+  workers: 1,
   use: {
     baseURL: RUN_LOCKED ? LOCKED_BASE_URL : 'http://localhost:3000',
     trace: 'on-first-retry',
