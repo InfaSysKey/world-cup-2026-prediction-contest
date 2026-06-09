@@ -1,23 +1,43 @@
-// Motor de puntuación del bracket eliminatorio (scoring-rules.md §3.4).
-// El cuerpo se implementa en el slice 5; aquí solo fijamos la firma para que el
-// resto del sistema pueda tipar contra ella.
+// Puntuación del bracket eliminatorio (scoring-rules.md §3.4). Función PURA: entra
+// el ganador que el usuario predijo para un cruce (o null si lo dejó vacío) y el
+// oficial del cruce (fase + ganador real + cancelado), sale { points, hit }. La
+// carga de BD y la persistencia las hace el orquestador (lib/scoring/index.ts).
 //
-// Puntos por acertar el ganador de un cruce: 1/16 → 4, 1/8 → 6, cuartos → 10,
-// semis → 15, 3.º/4.º puesto → 12, final → 25. Máximo 219 pts. Bracket RÍGIDO
-// (ADR 0003): el acierto solo cuenta si el equipo predicho jugó realmente ese
-// cruce y lo ganó.
+// Puntos por acertar el ganador: 1/16→4, 1/8→6, cuartos→10, semi→15, 3-4→12,
+// final→25. Máx 219. Bracket RÍGIDO (ADR 0003): el acierto se cuenta solo si el
+// equipo predicho es el que realmente ganó ESE cruce. Si por un fallo anterior el
+// usuario colocó aquí a un equipo ya eliminado, el ganador real del cruce no
+// coincidirá con su pick y el cruce no puntúa (no se "regenera" el bracket).
+// Cruce vacío o anulado (§6.1) → 0, sin penalización (§4 no aplica al bracket).
 
 import type { Phase } from '@/lib/db';
 
-export type KnockoutScore = {
-  matchId: number;
-  phase: Phase;
+import { KNOCKOUT_PHASE_POINTS } from './points';
+
+export type KnockoutPhase = Exclude<Phase, 'grupos'>;
+
+export type KnockoutOfficial = {
+  phase: KnockoutPhase;
+  // Equipo que realmente ganó este cruce.
+  realWinnerTeamCode: string;
+  // Cruce anulado por retirada de un equipo (§6.1).
+  cancelled: boolean;
+};
+
+export type KnockoutMatchScore = {
   points: number;
   hit: boolean;
 };
 
-export async function scoreKnockout(userId: number): Promise<KnockoutScore[]> {
-  void userId;
-  // TODO(slice-5): aplicar scoring-rules.md §3.4.
-  return [];
+export function scoreKnockoutMatch(
+  pick: string | null,
+  official: KnockoutOfficial,
+): KnockoutMatchScore {
+  if (official.cancelled || pick === null) {
+    return { points: 0, hit: false };
+  }
+  if (pick === official.realWinnerTeamCode) {
+    return { points: KNOCKOUT_PHASE_POINTS[official.phase], hit: true };
+  }
+  return { points: 0, hit: false };
 }

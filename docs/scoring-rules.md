@@ -77,7 +77,7 @@ Texto libre, con autocompletado contra un catálogo de jugadores que el admin im
 |---|---|
 | Marcador exacto (ej. predicción 2–1, real 2–1) | **5** |
 | Resultado correcto, marcador erróneo (ej. predijo 2–1, real 3–1 → ambos victoria local) | **3** |
-| Solo el número de goles de **un** equipo (ej. predijo 2–1, real 2–0) | **1** |
+| Solo el número de goles de **un** equipo, fallando el 1X2 (ej. predijo 2–1, real 2–3 → se acierta el local pero gana el visitante) | **1** |
 | Empate predicho y resultado empate, marcador erróneo (ej. predijo 1–1, real 2–2) | **3** |
 | Predicción no rellenada | **−1** (puntos penalizados) |
 
@@ -260,4 +260,9 @@ El motor (`scoreEngine.calculateUserScore(userId)`) debe:
 
 ## 10. Versionado de las reglas
 
-Este documento es **v1.0**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v1.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
+Este documento es **v1.1**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v1.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
+
+### Changelog
+
+- **v1.1** (2026-06-09) — §3.1: se corrige el ejemplo de la fila `one_goal`, que era incoherente con el de la fila `result` (ambos tenían el mismo outcome 1X2). Se fija la regla de marcadores de grupos como **basada en outcome (1X2)**: 5 exacto / 3 acierto de 1X2 / 1 acierto de los goles de un equipo fallando el 1X2 / 0 resto. Ver `docs/decisions/0006-puntuacion-grupos-basada-en-outcome.md`.
+- **v1.0** — versión inicial.

@@ -7,6 +7,10 @@ import { requireAdminAction, type ActionError } from '@/lib/auth/require-admin-a
 import { db, matches } from '@/lib/db';
 import { logger } from '@/lib/logger';
 import { computeGroupWinner } from '@/lib/matches/compute-winner';
+import {
+  recalculateAfterResultChangeWithTx,
+  type ResultChange,
+} from '@/lib/scoring';
 import { matchResultSchema } from '@/lib/validators/admin';
 
 export type SaveMatchResultState =
@@ -73,16 +77,28 @@ export async function saveMatchResultAction(
     realWinnerTeamCode = winnerTeamCode;
   }
 
+  // El cambio de resultado afecta a una categoría distinta según la fase: los
+  // partidos de grupos puntúan en group_matches; los cruces, en bracket.
+  const change: ResultChange =
+    match.phase === 'grupos'
+      ? { type: 'group_match', matchId }
+      : { type: 'knockout', matchId };
+
   try {
-    await db
-      .update(matches)
-      .set({
-        realGolesLocal: golesLocal,
-        realGolesVisitante: golesVisitante,
-        realWinnerTeamCode,
-        status: 'finished',
-      })
-      .where(eq(matches.id, matchId));
+    // Guardado del resultado + recálculo selectivo en una sola transacción, para
+    // que la clasificación nunca quede desincronizada respecto al resultado.
+    await db.transaction(async (tx) => {
+      await tx
+        .update(matches)
+        .set({
+          realGolesLocal: golesLocal,
+          realGolesVisitante: golesVisitante,
+          realWinnerTeamCode,
+          status: 'finished',
+        })
+        .where(eq(matches.id, matchId));
+      await recalculateAfterResultChangeWithTx(tx, change, guard.user.id);
+    });
   } catch (err) {
     logger.error('saveMatchResultAction failed', { err, matchId });
     return {

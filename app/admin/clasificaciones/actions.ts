@@ -13,6 +13,7 @@ import {
   teams,
 } from '@/lib/db';
 import { logger } from '@/lib/logger';
+import { recalculateAfterResultChangeWithTx } from '@/lib/scoring';
 import {
   actualAwardSchema,
   bestThirdsSchema,
@@ -79,6 +80,11 @@ export async function saveGroupStandingAction(
             set: { teamCode: teamCodes[i], updatedAt: new Date() },
           });
       }
+      await recalculateAfterResultChangeWithTx(
+        tx,
+        { type: 'group_standings', groupLetter },
+        guard.user.id,
+      );
     });
   } catch (err) {
     logger.error('saveGroupStandingAction failed', { err, groupLetter });
@@ -117,6 +123,11 @@ export async function saveBestThirdsAction(
             set: { teamCode: teamCodes[i], updatedAt: new Date() },
           });
       }
+      await recalculateAfterResultChangeWithTx(
+        tx,
+        { type: 'best_thirds' },
+        guard.user.id,
+      );
     });
   } catch (err) {
     logger.error('saveBestThirdsAction failed', { err });
@@ -148,21 +159,28 @@ export async function saveActualAwardAction(
   const isPodium = (PODIUM_AWARD_KINDS as readonly string[]).includes(kind);
 
   try {
-    await db
-      .insert(actualAwards)
-      .values({
-        kind,
-        teamCode: isPodium ? teamCode : null,
-        playerName: isPodium ? null : playerName,
-      })
-      .onConflictDoUpdate({
-        target: actualAwards.kind,
-        set: {
+    await db.transaction(async (tx) => {
+      await tx
+        .insert(actualAwards)
+        .values({
+          kind,
           teamCode: isPodium ? teamCode : null,
           playerName: isPodium ? null : playerName,
-          updatedAt: new Date(),
-        },
-      });
+        })
+        .onConflictDoUpdate({
+          target: actualAwards.kind,
+          set: {
+            teamCode: isPodium ? teamCode : null,
+            playerName: isPodium ? null : playerName,
+            updatedAt: new Date(),
+          },
+        });
+      await recalculateAfterResultChangeWithTx(
+        tx,
+        { type: 'award', awardKind: kind },
+        guard.user.id,
+      );
+    });
   } catch (err) {
     logger.error('saveActualAwardAction failed', { err, kind });
     return internalError();
