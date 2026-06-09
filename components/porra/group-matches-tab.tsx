@@ -58,7 +58,7 @@ function toEntries(map: ScoreMap): GroupMatchPredictionInput[] {
 }
 
 const inputClass =
-  'w-14 rounded border border-zinc-300 px-2 py-1 text-center disabled:bg-zinc-100 disabled:text-zinc-400';
+  'h-11 w-14 rounded border border-zinc-300 px-2 text-center disabled:bg-zinc-100 disabled:text-zinc-400';
 
 export function GroupMatchesTab({
   catalog,

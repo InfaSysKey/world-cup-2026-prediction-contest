@@ -1,11 +1,9 @@
-import { eq } from 'drizzle-orm';
-
-import { db, matches, predictionsAwards, predictionsKnockout } from '@/lib/db';
 import {
   deducePodium,
   type KnockoutPick,
   type PodiumDeduction,
 } from '@/lib/scoring/deduce-podium';
+import type { KnockoutMatchRef } from '@/lib/scoring/resolve-bracket';
 
 // Los 3 puestos del podio guardados en BD (null = puesto vacío).
 export type PodiumState = {
@@ -14,9 +12,9 @@ export type PodiumState = {
   third: string | null;
 };
 
-// Mapa de desincronización podio↔bracket por puesto. Lo conserva `podio-completion.ts`
-// (helper puro). Vive aquí por compatibilidad de tipos; el flujo vivo del stepper
-// usa `computePorraSummary` (lib/scoring/porra-summary.ts).
+// Mapa de desincronización podio↔bracket por puesto. Lo conserva
+// `podio-completion.ts` (helper puro). Vive aquí por compatibilidad de tipos; el
+// flujo vivo del stepper usa `computePorraSummary` (lib/scoring/porra-summary.ts).
 export type PodiumMismatches = {
   champion: boolean;
   runnerUp: boolean;
@@ -33,10 +31,14 @@ export type PodiumData = {
   suggested: PodiumDeduction;
 };
 
-const PODIUM_KINDS = ['champion', 'runner_up', 'third'] as const;
+const PODIUM_KINDS: ReadonlySet<string> = new Set([
+  'champion',
+  'runner_up',
+  'third',
+]);
 
 function toState(
-  rows: { kind: string; teamCode: string | null }[],
+  rows: readonly { kind: string; teamCode: string | null }[],
 ): PodiumState {
   const byKind = new Map(rows.map((r) => [r.kind, r.teamCode]));
   return {
@@ -46,40 +48,23 @@ function toState(
   };
 }
 
-// Lectura PURA del podio (ADR 0005): devuelve lo guardado en BD y la sugerencia
-// derivada del bracket. NO escribe nada. El prefill automático en el render del
-// server component se eliminó (informe ultracode, CRÍTICO 2): persistir en un GET
-// rompía la idempotencia y creaba una carrera con loadUserPredictions. La
-// persistencia ocurre solo cuando el usuario confirma/edita un puesto vía la
-// Server Action savePodiumPrediction.
-export async function loadPodium(userId: number): Promise<PodiumData> {
-  const [knockoutRows, awardRows] = await Promise.all([
-    db
-      .select({
-        phase: matches.phase,
-        winnerTeamCode: predictionsKnockout.winnerTeamCode,
-      })
-      .from(predictionsKnockout)
-      .innerJoin(matches, eq(matches.id, predictionsKnockout.matchId))
-      .where(eq(predictionsKnockout.userId, userId)),
-    db
-      .select({
-        kind: predictionsAwards.kind,
-        teamCode: predictionsAwards.teamCode,
-      })
-      .from(predictionsAwards)
-      .where(eq(predictionsAwards.userId, userId)),
-  ]);
-
-  const picks: KnockoutPick[] = knockoutRows.map((r) => ({
-    phase: r.phase,
-    winnerTeamCode: r.winnerTeamCode,
-  }));
+// Deriva el podio (lo guardado + la sugerencia del bracket) a partir de las
+// predicciones que el server component YA cargó (load-predictions.ts) y del
+// catálogo de cruces. PURA: sin BD ni escritura (ADR 0005). No vuelve a consultar
+// predictions_awards / predictions_knockout, que loadUserPredictions ya trae
+// (evita las consultas duplicadas señaladas en el informe ultracode, MINOR 7).
+export function derivePodium(
+  awards: readonly { kind: string; teamCode: string | null }[],
+  knockout: readonly { matchId: number; winnerTeamCode: string }[],
+  knockoutMatches: readonly KnockoutMatchRef[],
+): PodiumData {
+  const phaseByMatch = new Map(knockoutMatches.map((m) => [m.id, m.phase]));
+  const picks: KnockoutPick[] = knockout.flatMap((k) => {
+    const phase = phaseByMatch.get(k.matchId);
+    return phase ? [{ phase, winnerTeamCode: k.winnerTeamCode }] : [];
+  });
   const suggested = deducePodium(picks);
 
-  const podiumRows = awardRows.filter((r) =>
-    (PODIUM_KINDS as readonly string[]).includes(r.kind),
-  );
-
+  const podiumRows = awards.filter((a) => PODIUM_KINDS.has(a.kind));
   return { persisted: toState(podiumRows), suggested };
 }

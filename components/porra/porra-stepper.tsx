@@ -55,9 +55,17 @@ const SUMMARY_TAB_TO_STEPPER: Record<MismatchTab, string> = {
   premios: 'premios',
 };
 
-const PHASE_TO_BRACKET_TAB = Object.fromEntries(
-  Object.entries(BRACKET_TAB_PHASE).map(([tabId, phase]) => [phase, tabId]),
-) as Record<Phase, string>;
+// Inverso de BRACKET_TAB_PHASE (fase → id del tab del bracket). Literal explícito
+// para no castear; mantener en sync con BRACKET_TAB_PHASE.
+const PHASE_TO_BRACKET_TAB: Record<Phase, BracketTabId | undefined> = {
+  '1/16': 'dieciseisavos',
+  '1/8': 'octavos',
+  cuartos: 'cuartos',
+  semi: 'semis',
+  '3-4': 'tercer-puesto',
+  final: 'final',
+  grupos: undefined,
+};
 
 type PorraStepperProps = {
   initialData: UserPredictions;
@@ -246,12 +254,8 @@ export function PorraStepper({
   // summary) reflejen el cambio.
   const syncPodiumToBracket = useCallback(
     (m: Mismatch) => {
-      const slot = /^podio\.(champion|runnerUp|third)\./.exec(m.id)?.[1] as
-        | 'champion'
-        | 'runnerUp'
-        | 'third'
-        | undefined;
-      if (!slot) {
+      const slot = /^podio\.(champion|runnerUp|third)\./.exec(m.id)?.[1];
+      if (slot !== 'champion' && slot !== 'runnerUp' && slot !== 'third') {
         return;
       }
       const picks = knockout.flatMap((k) => {

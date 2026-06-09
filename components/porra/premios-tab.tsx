@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react';
 
 import { savePlayerAwardsPrediction } from '@/app/(porra)/porra/actions';
 import type { PremiosState } from '@/app/(porra)/porra/premios-completion';
+import { PLAYER_NAME_MAX } from '@/lib/constants';
 import { useAutoSave } from '@/lib/hooks/use-auto-save';
 
 type PremiosKey = keyof PremiosState;
@@ -27,7 +28,6 @@ const BALONES: FieldConfig[] = [
 ];
 
 const HINT = 'Ej: Mbappé, Vinicius Jr…';
-const PLAYER_NAME_MAX = 80;
 
 // Estado local del formulario: strings ('' = vacío). Se convierte a null al
 // guardar y al detectar duplicados, igual que el servidor.

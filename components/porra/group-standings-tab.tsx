@@ -146,6 +146,7 @@ export function GroupStandingsTab({
       return {
         id: code,
         content: team ? `${team.flag} ${team.name}` : code,
+        label: team?.name ?? code,
       };
     });
   }

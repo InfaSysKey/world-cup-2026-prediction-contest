@@ -11,6 +11,8 @@ import { type ReactNode, useState } from 'react';
 export type SortableItem = {
   id: string;
   content: ReactNode;
+  // Etiqueta accesible (nombre legible) para los botones ↑/↓; si falta, el id.
+  label?: string;
 };
 
 type SortableListProps = {
@@ -97,9 +99,9 @@ export function SortableList({
               type="button"
               disabled={disabled || index === 0}
               data-testid={`${testIdPrefix}-up-${item.id}`}
-              aria-label={`Subir ${item.id}`}
+              aria-label={`Subir ${item.label ?? item.id}`}
               onClick={() => reorder(index, index - 1)}
-              className="rounded border border-zinc-300 px-1.5 leading-none disabled:opacity-30"
+              className="flex size-11 items-center justify-center rounded border border-zinc-300 disabled:opacity-30"
             >
               ↑
             </button>
@@ -107,9 +109,9 @@ export function SortableList({
               type="button"
               disabled={disabled || index === items.length - 1}
               data-testid={`${testIdPrefix}-down-${item.id}`}
-              aria-label={`Bajar ${item.id}`}
+              aria-label={`Bajar ${item.label ?? item.id}`}
               onClick={() => reorder(index, index + 1)}
-              className="rounded border border-zinc-300 px-1.5 leading-none disabled:opacity-30"
+              className="flex size-11 items-center justify-center rounded border border-zinc-300 disabled:opacity-30"
             >
               ↓
             </button>

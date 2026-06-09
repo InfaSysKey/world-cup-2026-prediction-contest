@@ -7,7 +7,7 @@ import { loadAllLocks } from '@/lib/scoring/locks';
 import { loadGroupMatches } from './load-group-matches';
 import { loadGroupTeams } from './load-group-teams';
 import { loadKnockoutMatches } from './load-knockout';
-import { loadPodium } from './load-podium';
+import { derivePodium } from './load-podium';
 import { loadUserPredictions } from './load-predictions';
 
 export default async function PorraPage() {
@@ -16,19 +16,20 @@ export default async function PorraPage() {
     redirect('/login');
   }
 
-  const [
-    initialData,
-    groupMatchesCatalog,
-    groupTeamsCatalog,
+  const [initialData, groupMatchesCatalog, groupTeamsCatalog, knockoutCatalog] =
+    await Promise.all([
+      loadUserPredictions(user.id),
+      loadGroupMatches(),
+      loadGroupTeams(),
+      loadKnockoutMatches(),
+    ]);
+  // El podio se deriva de lo ya cargado (predicciones + catálogo de cruces): no
+  // necesita consultas propias (ADR 0005, MINOR 7 del informe ultracode).
+  const podiumData = derivePodium(
+    initialData.awards,
+    initialData.knockout,
     knockoutCatalog,
-    podiumData,
-  ] = await Promise.all([
-    loadUserPredictions(user.id),
-    loadGroupMatches(),
-    loadGroupTeams(),
-    loadKnockoutMatches(),
-    loadPodium(user.id),
-  ]);
+  );
   const locks = loadAllLocks();
 
   return (

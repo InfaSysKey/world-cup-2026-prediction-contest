@@ -8,6 +8,7 @@ import type {
   GroupTeamsCatalog,
 } from '@/app/(porra)/porra/load-group-teams';
 import { SortableList, type SortableItem } from '@/components/porra/sortable-list';
+import { BEST_THIRDS_COUNT } from '@/lib/constants';
 import type { PredictionBestThird, PredictionGroupStanding } from '@/lib/db';
 import { useAutoSave } from '@/lib/hooks/use-auto-save';
 import {
@@ -15,7 +16,7 @@ import {
   type BestThirdStale,
 } from '@/lib/validators/cross-tab';
 
-const TOTAL_SLOTS = 8;
+const TOTAL_SLOTS = BEST_THIRDS_COUNT;
 const DRAG_MIME = 'application/x-best-third';
 
 type BestThirdsTabProps = {
@@ -180,6 +181,7 @@ export function BestThirdsTab({
     const isStale = staleByTeam.get(code);
     return {
       id: code,
+      label: teamLabel.get(code)?.name ?? code,
       content: (
         <span className="flex flex-1 items-center justify-between gap-2">
           <span className="truncate">
@@ -196,10 +198,10 @@ export function BestThirdsTab({
           <button
             type="button"
             data-testid={`bt-remove-${code}`}
-            aria-label={`Quitar ${code}`}
+            aria-label={`Quitar ${teamLabel.get(code)?.name ?? code}`}
             disabled={locked}
             onClick={() => remove(code)}
-            className="shrink-0 rounded border border-zinc-300 px-1.5 text-xs leading-none disabled:opacity-30"
+            className="min-h-[44px] shrink-0 rounded border border-zinc-300 px-2.5 text-xs disabled:opacity-30"
           >
             Quitar
           </button>
@@ -264,10 +266,10 @@ export function BestThirdsTab({
                 <button
                   type="button"
                   data-testid={`bt-candidate-add-${code}`}
-                  aria-label={`Añadir ${code}`}
+                  aria-label={`Añadir ${teamLabel.get(code)?.name ?? code}`}
                   disabled={locked || isSelected || selected.length >= TOTAL_SLOTS}
                   onClick={() => add(code)}
-                  className="rounded border border-zinc-300 px-1 leading-none disabled:opacity-30"
+                  className="flex min-h-[36px] min-w-[36px] items-center justify-center rounded border border-zinc-300 disabled:opacity-30"
                 >
                   +
                 </button>
@@ -342,35 +344,38 @@ export function BestThirdsTab({
             <p className="text-xs font-medium text-amber-800">
               Estas selecciones ya no son el 3.º de su grupo. Revísalas:
             </p>
-            {stale.map((s) => (
-              <div
-                key={s.teamCode}
-                data-testid={`bt-stale-${s.teamCode}`}
-                className="flex flex-wrap items-center gap-2 text-xs"
-              >
-                <span className="font-medium">{label(s.teamCode)}</span>
-                {s.replacement ? (
+            {stale.map((s) => {
+              const replacement = s.replacement;
+              return (
+                <div
+                  key={s.teamCode}
+                  data-testid={`bt-stale-${s.teamCode}`}
+                  className="flex flex-wrap items-center gap-2 text-xs"
+                >
+                  <span className="font-medium">{label(s.teamCode)}</span>
+                  {replacement ? (
+                    <button
+                      type="button"
+                      data-testid={`bt-stale-replace-${s.teamCode}`}
+                      disabled={locked}
+                      onClick={() => replace(s.teamCode, replacement)}
+                      className="min-h-[44px] rounded border border-amber-400 px-2.5 disabled:opacity-30"
+                    >
+                      Sustituir por {label(replacement)} (grupo {s.groupLetter})
+                    </button>
+                  ) : null}
                   <button
                     type="button"
-                    data-testid={`bt-stale-replace-${s.teamCode}`}
+                    data-testid={`bt-stale-remove-${s.teamCode}`}
                     disabled={locked}
-                    onClick={() => replace(s.teamCode, s.replacement as string)}
-                    className="rounded border border-amber-400 px-1.5 py-0.5 disabled:opacity-30"
+                    onClick={() => remove(s.teamCode)}
+                    className="min-h-[44px] rounded border border-amber-400 px-2.5 disabled:opacity-30"
                   >
-                    Sustituir por {label(s.replacement)} (grupo {s.groupLetter})
+                    Quitar de la selección
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  data-testid={`bt-stale-remove-${s.teamCode}`}
-                  disabled={locked}
-                  onClick={() => remove(s.teamCode)}
-                  className="rounded border border-amber-400 px-1.5 py-0.5 disabled:opacity-30"
-                >
-                  Quitar de la selección
-                </button>
-              </div>
-            ))}
+                </div>
+              );
+            })}
           </div>
         ) : null}
       </section>

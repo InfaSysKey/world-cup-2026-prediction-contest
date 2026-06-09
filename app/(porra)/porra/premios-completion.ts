@@ -1,5 +1,3 @@
-import type { PredictionAward } from '@/lib/db';
-
 // Estado del tab Premios: los 6 nombres de jugador (null = campo vacío). Vive
 // junto al de podio porque ambos derivan de predictions_awards, pero son
 // independientes: aquí solo importan los kinds boot_*/ball_* (data-model.md §4.5).
@@ -37,7 +35,7 @@ const EMPTY_STATE: PremiosState = {
 // Proyecta las filas de predictions_awards del usuario al estado del tab. Ignora
 // las filas de podio (champion/runner_up/third): lectura independiente.
 export function premiosStateFromAwards(
-  awards: PredictionAward[],
+  awards: readonly { kind: string; playerName: string | null }[],
 ): PremiosState {
   const state: PremiosState = { ...EMPTY_STATE };
   for (const a of awards) {

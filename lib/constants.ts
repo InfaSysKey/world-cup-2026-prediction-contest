@@ -97,3 +97,7 @@ export const KNOCKOUT_MATCHES_PER_PHASE = {
 
 // Debounce del autosave del formulario (skill add-prediction-type).
 export const AUTOSAVE_DEBOUNCE_MS = 800;
+
+// Longitud máxima del nombre de un jugador en los premios individuales
+// (botas/balones). Texto libre, sin catálogo (scoring-rules.md §2.7).
+export const PLAYER_NAME_MAX = 80;

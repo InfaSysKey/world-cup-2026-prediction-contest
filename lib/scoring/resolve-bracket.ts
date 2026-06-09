@@ -1,3 +1,4 @@
+import { BEST_THIRDS_COUNT } from '@/lib/constants';
 import type { Phase } from '@/lib/db';
 
 import { BEST_THIRDS_MAPPING } from './best-thirds-mapping';
@@ -76,7 +77,9 @@ const THIRD_REF = /^3[A-L]+$/;
 const WINNER_REF = /^W(\d+)$/;
 const LOSER_REF = /^L(\d+)$/;
 
-const BEST_THIRDS_GROUP_COUNT = 8;
+// El usuario debe tener mejores terceros de exactamente 8 grupos distintos para
+// que el mapping del Excel asigne cada 3.º a su cruce de 1/16.
+const BEST_THIRDS_GROUP_COUNT = BEST_THIRDS_COUNT;
 
 export function resolveBracket(
   input: ResolveBracketInput,

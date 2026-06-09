@@ -1,6 +1,12 @@
 import { z } from 'zod';
 
-import { GROUP_LETTERS, MATCHES_GROUP_STAGE, MAX_GOLES } from '@/lib/constants';
+import {
+  GROUP_LETTERS,
+  MATCHES_GROUP_STAGE,
+  MATCHES_TOTAL,
+  MAX_GOLES,
+  PLAYER_NAME_MAX,
+} from '@/lib/constants';
 
 // Validadores Zod de las predicciones del formulario de porra.
 //
@@ -130,8 +136,10 @@ export type BestThirdsBatchInput = z.infer<typeof bestThirdsBatchSchema>;
 // jugó realmente el cruce" es warning cross-tab (bracket rígido, ADR 0003), no
 // se valida aquí. La existencia del team_code en `teams` se comprueba en la
 // Server Action.
-const KNOCKOUT_MATCH_ID_MIN = 73;
-const KNOCKOUT_MATCH_ID_MAX = 104;
+// Los cruces de eliminatorias son los partidos posteriores a la fase de grupos
+// (data-model.md §4.4, seed/matches.ts): del 73 al 104.
+const KNOCKOUT_MATCH_ID_MIN = MATCHES_GROUP_STAGE + 1;
+const KNOCKOUT_MATCH_ID_MAX = MATCHES_TOTAL;
 
 export const knockoutPredictionSchema = z.object({
   matchId: z
@@ -214,8 +222,7 @@ export type AwardKind = z.infer<typeof awardKindSchema>;
 // Texto libre, sin catálogo de jugadores: el admin normaliza nombres en slice 8
 // si hace falta (decisión de producto que invalida el "autocompletado" de
 // scoring-rules.md §2.7). Cada campo es nullable para permitir guardado parcial;
-// un campo presente debe tener 1–80 chars tras recortar espacios.
-const PLAYER_NAME_MAX = 80;
+// un campo presente debe tener 1–PLAYER_NAME_MAX chars tras recortar espacios.
 const playerName = z
   .string()
   .trim()
