@@ -1,36 +1,70 @@
 'use client';
 
-import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useMemo, useState } from 'react';
 
+import {
+  saveKnockoutPrediction,
+  savePodiumPrediction,
+} from '@/app/(porra)/porra/actions';
 import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
 import type { GroupTeamsCatalog } from '@/app/(porra)/porra/load-group-teams';
 import type { PodiumData } from '@/app/(porra)/porra/load-podium';
-import { podioCompletion } from '@/app/(porra)/porra/podio-completion';
-import {
-  premiosCompletion,
-  premiosStateFromAwards,
-} from '@/app/(porra)/porra/premios-completion';
+import { premiosStateFromAwards } from '@/app/(porra)/porra/premios-completion';
 import { BestThirdsTab } from '@/components/porra/best-thirds-tab';
+import { BracketPhase } from '@/components/porra/bracket-phase';
 import { GruposTab } from '@/components/porra/grupos-tab';
 import { PodioTab } from '@/components/porra/podio-tab';
+import { PorraStickyFooter } from '@/components/porra/porra-sticky-footer';
 import { PremiosTab } from '@/components/porra/premios-tab';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  BEST_THIRDS_COUNT,
-  GROUP_LETTERS,
-  MATCHES_GROUP_STAGE,
+  BRACKET_TAB_PHASE,
   PORRA_TABS,
+  type BracketTabId,
 } from '@/lib/constants';
+import type { Phase } from '@/lib/db';
+import { useAutoSave } from '@/lib/hooks/use-auto-save';
 import type { UserPredictions } from '@/lib/predictions/types';
+import { deducePodium } from '@/lib/scoring/deduce-podium';
 import type { PredictionLocks } from '@/lib/scoring/locks';
+import {
+  computePorraSummary,
+  type Mismatch,
+  type MismatchTab,
+} from '@/lib/scoring/porra-summary';
+import {
+  resolveBracket,
+  type KnockoutMatchRef,
+  type KnockoutPickRef,
+} from '@/lib/scoring/resolve-bracket';
 
 type Completion = 'complete' | 'revisar' | 'partial' | 'empty';
+
+function isBracketTab(tabId: string): tabId is BracketTabId {
+  return tabId in BRACKET_TAB_PHASE;
+}
+
+// Qué tab del stepper corresponde a cada categoría del summary (para navegar
+// desde el panel de revisión). El bracket entra por su primera ronda.
+const SUMMARY_TAB_TO_STEPPER: Record<MismatchTab, string> = {
+  grupos: 'grupos',
+  terceros: 'mejores-terceros',
+  bracket: 'dieciseisavos',
+  podio: 'podio',
+  premios: 'premios',
+};
+
+const PHASE_TO_BRACKET_TAB = Object.fromEntries(
+  Object.entries(BRACKET_TAB_PHASE).map(([tabId, phase]) => [phase, tabId]),
+) as Record<Phase, string>;
 
 type PorraStepperProps = {
   initialData: UserPredictions;
   locks: PredictionLocks;
   groupMatchesCatalog: GroupCatalog[];
   groupTeamsCatalog: GroupTeamsCatalog[];
+  knockoutCatalog: KnockoutMatchRef[];
   podium: PodiumData;
 };
 
@@ -55,6 +89,7 @@ export function PorraStepper({
   locks,
   groupMatchesCatalog,
   groupTeamsCatalog,
+  knockoutCatalog,
   podium,
 }: PorraStepperProps) {
   const [active, setActive] = useState<string>(PORRA_TABS[0].id);
@@ -63,39 +98,227 @@ export function PorraStepper({
   // estado. Basta con que alguna esté bloqueada para mostrar el banner.
   const locked = Object.values(locks).some(Boolean);
 
+  // --- Estado y resolución del bracket eliminatorio (sub-slice 4.5) ---
+
+  // Catálogo de equipos plano: code → {flag, name} para etiquetar los cruces, y
+  // code → grupo para resolver los slots de mejor 3.º.
+  const { teamLabel, teamGroup, teamName } = useMemo(() => {
+    const label = new Map<string, string>();
+    const group = new Map<string, string>();
+    const nameMap = new Map<string, string>();
+    for (const g of groupTeamsCatalog) {
+      for (const t of g.teams) {
+        label.set(t.code, `${t.flag} ${t.name}`);
+        group.set(t.code, g.groupLetter);
+        nameMap.set(t.code, t.name);
+      }
+    }
+    return { teamLabel: label, teamGroup: group, teamName: nameMap };
+  }, [groupTeamsCatalog]);
+
+  // Las predicciones de bracket son el único estado reactivo del árbol: standings
+  // y mejores terceros se toman del snapshot del servidor (igual que el tab de
+  // mejores terceros). Al pulsar un ganador, las rondas siguientes se re-resuelven
+  // en cliente sin recargar.
+  const [knockout, setKnockout] = useState<KnockoutPickRef[]>(() =>
+    initialData.knockout.map((k) => ({
+      matchId: k.matchId,
+      winnerTeamCode: k.winnerTeamCode,
+    })),
+  );
+
+  const resolution = useMemo(
+    () =>
+      resolveBracket({
+        matches: knockoutCatalog,
+        standings: initialData.groupStandings,
+        bestThirds: initialData.bestThirds,
+        knockout,
+        teamGroup,
+      }),
+    [
+      knockoutCatalog,
+      initialData.groupStandings,
+      initialData.bestThirds,
+      knockout,
+      teamGroup,
+    ],
+  );
+
+  const onSaveKnockout = useCallback(async (pick: KnockoutPickRef) => {
+    const res = await saveKnockoutPrediction(pick);
+    if (res.error) {
+      throw new Error(res.error.message);
+    }
+  }, []);
+
+  const {
+    status: knockoutStatus,
+    save: saveKnockout,
+    retry: retryKnockout,
+  } = useAutoSave<KnockoutPickRef>(onSaveKnockout);
+
+  const onPick = useCallback(
+    (matchId: number, winnerTeamCode: string) => {
+      if (locked) {
+        return;
+      }
+      setKnockout((prev) => {
+        const next = prev.filter((p) => p.matchId !== matchId);
+        next.push({ matchId, winnerTeamCode });
+        return next;
+      });
+      saveKnockout({ matchId, winnerTeamCode });
+    },
+    [locked, saveKnockout],
+  );
+
+  const knockoutLabel = useCallback(
+    (code: string) => teamLabel.get(code) ?? code,
+    [teamLabel],
+  );
+
+  const phaseByMatch = useMemo(
+    () => new Map(knockoutCatalog.map((m) => [m.id, m.phase])),
+    [knockoutCatalog],
+  );
+
+  // --- Resumen global (sub-slice 4.8): única fuente de verdad del estado ---
+  // Standings, terceros, podio y premios salen del snapshot del servidor (que se
+  // refresca tras cada autosave vía revalidatePath); el bracket usa el estado
+  // reactivo de los picks para que el footer responda al instante.
+  const summary = useMemo(
+    () =>
+      computePorraSummary(
+        {
+          groupMatches: initialData.groupMatches,
+          groupStandings: initialData.groupStandings,
+          bestThirds: initialData.bestThirds,
+          knockout,
+          awards: initialData.awards,
+        },
+        { knockoutMatches: knockoutCatalog, teamGroup, teamName },
+      ),
+    [initialData, knockout, knockoutCatalog, teamGroup, teamName],
+  );
+
+  const router = useRouter();
+
+  // Navega al tab indicado (huecos) o al tab + ancla de un mismatch, haciendo
+  // scroll al elemento. Radix monta el contenido del tab al activarlo, así que
+  // el scroll se difiere a la siguiente vuelta del event loop.
+  const goToTab = useCallback((tabId: string) => {
+    setActive(tabId);
+  }, []);
+
+  const goToMismatch = useCallback(
+    (m: Mismatch) => {
+      let tabId = SUMMARY_TAB_TO_STEPPER[m.tab];
+      if (m.tab === 'bracket') {
+        const matched = /^bracket-match-(\d+)$/.exec(m.anchor);
+        const phase = matched ? phaseByMatch.get(Number(matched[1])) : undefined;
+        if (phase && PHASE_TO_BRACKET_TAB[phase]) {
+          tabId = PHASE_TO_BRACKET_TAB[phase];
+        }
+      }
+      setActive(tabId);
+      setTimeout(() => {
+        document
+          .querySelector(`[data-testid="${m.anchor}"]`)
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 60);
+    },
+    [phaseByMatch],
+  );
+
+  // Sincroniza un puesto del podio con la deducción del bracket desde el panel.
+  // Reescribe la fila vía la Server Action y refresca para que el snapshot (y el
+  // summary) reflejen el cambio.
+  const syncPodiumToBracket = useCallback(
+    (m: Mismatch) => {
+      const slot = /^podio\.(champion|runnerUp|third)\./.exec(m.id)?.[1] as
+        | 'champion'
+        | 'runnerUp'
+        | 'third'
+        | undefined;
+      if (!slot) {
+        return;
+      }
+      const picks = knockout.flatMap((k) => {
+        const phase = phaseByMatch.get(k.matchId);
+        return phase ? [{ phase, winnerTeamCode: k.winnerTeamCode }] : [];
+      });
+      const expected = deducePodium(picks)[slot];
+      if (!expected) {
+        return;
+      }
+      const byKind = new Map(
+        initialData.awards.map((a) => [a.kind, a.teamCode]),
+      );
+      const current = {
+        champion: byKind.get('champion') ?? null,
+        runnerUp: byKind.get('runner_up') ?? null,
+        third: byKind.get('third') ?? null,
+      };
+      void savePodiumPrediction({ ...current, [slot]: expected }).then(() =>
+        router.refresh(),
+      );
+    },
+    [knockout, phaseByMatch, initialData.awards, router],
+  );
+
+  // El indicador de cada tab sale del summary (única fuente de verdad, sub-slice
+  // 4.8). Los 6 tabs del bracket comparten el estado agregado de la categoría
+  // bracket. La distinción visual vacío/parcial es lo único que decide el
+  // stepper, porque el summary solo expone completa/incompleta/revisar.
+  function summaryKeyOf(tabId: string): MismatchTab | null {
+    if (tabId === 'grupos') return 'grupos';
+    if (tabId === 'mejores-terceros') return 'terceros';
+    if (tabId === 'podio') return 'podio';
+    if (tabId === 'premios') return 'premios';
+    if (isBracketTab(tabId)) return 'bracket';
+    return null;
+  }
+
+  function tabHasData(key: MismatchTab): boolean {
+    switch (key) {
+      case 'grupos':
+        return (
+          initialData.groupMatches.length > 0 ||
+          initialData.groupStandings.length > 0
+        );
+      case 'terceros':
+        return initialData.bestThirds.length > 0;
+      case 'bracket':
+        return knockout.length > 0;
+      case 'podio':
+        return initialData.awards.some(
+          (a) =>
+            (a.kind === 'champion' ||
+              a.kind === 'runner_up' ||
+              a.kind === 'third') &&
+            a.teamCode !== null,
+        );
+      case 'premios':
+        return initialData.awards.some(
+          (a) => a.kind.startsWith('boot_') || a.kind.startsWith('ball_'),
+        );
+    }
+  }
+
   function completionOf(tabId: string): Completion {
-    if (tabId === 'grupos') {
-      // El tab Grupos cubre dos categorías: marcadores (72 partidos) y orden de
-      // los 12 grupos. Solo está completo si ambas lo están.
-      const matchesFilled = initialData.groupMatches.length;
-      const groupsOrdered = new Set(
-        initialData.groupStandings.map((s) => s.groupLetter),
-      ).size;
-      const matchesComplete = matchesFilled >= MATCHES_GROUP_STAGE;
-      const standingsComplete = groupsOrdered >= GROUP_LETTERS.length;
-      if (matchesComplete && standingsComplete) {
-        return 'complete';
-      }
-      return matchesFilled > 0 || groupsOrdered > 0 ? 'partial' : 'empty';
+    const key = summaryKeyOf(tabId);
+    if (!key) {
+      return 'empty';
     }
-    if (tabId === 'mejores-terceros') {
-      const picked = initialData.bestThirds.length;
-      if (picked >= BEST_THIRDS_COUNT) {
-        return 'complete';
-      }
-      return picked > 0 ? 'partial' : 'empty';
+    const status = summary.tabs[key].status;
+    if (status === 'completa') {
+      return 'complete';
     }
-    if (tabId === 'podio') {
-      // La regla (incluida la prioridad de "revisar" sobre "completo") vive en
-      // podioCompletion, función pura.
-      return podioCompletion(podium.podium, podium.mismatches);
+    if (status === 'revisar') {
+      return 'revisar';
     }
-    if (tabId === 'premios') {
-      // El tab más simple: completo solo si los 6 nombres están rellenos. Sin
-      // 'revisar' (no hay deducción ni stale). Función pura, derivada de la BD.
-      return premiosCompletion(premiosStateFromAwards(initialData.awards));
-    }
-    return 'empty';
+    return tabHasData(key) ? 'partial' : 'empty';
   }
 
   return (
@@ -175,18 +398,43 @@ export function PorraStepper({
                   locked={locks.awards}
                 />
               </section>
+            ) : isBracketTab(tab.id) ? (
+              <section data-testid={`porra-panel-${tab.id}`} className="p-2">
+                <BracketPhase
+                  tabId={tab.id}
+                  matches={knockoutCatalog
+                    .filter((m) => m.phase === BRACKET_TAB_PHASE[tab.id])
+                    .map((m) => resolution.get(m.id))
+                    .filter((m): m is NonNullable<typeof m> => m !== undefined)}
+                  teamLabel={knockoutLabel}
+                  locked={locks.knockout}
+                  status={knockoutStatus}
+                  onRetry={retryKnockout}
+                  onPick={onPick}
+                />
+              </section>
             ) : (
               <section
                 data-testid={`porra-panel-${tab.id}`}
                 className="rounded border border-zinc-200 p-6"
               >
                 <h2 className="text-lg font-semibold">{tab.label}</h2>
-                <p className="mt-2 text-zinc-500">Próximamente (sub-slice 4.5+).</p>
+                <p className="mt-2 text-zinc-500">Próximamente.</p>
               </section>
             )}
           </TabsContent>
         ))}
       </Tabs>
+
+      {/* Espaciador para que el footer fijo no tape el contenido. */}
+      <div className="h-12" aria-hidden />
+
+      <PorraStickyFooter
+        summary={summary}
+        onGoToTab={goToTab}
+        onGoToMismatch={goToMismatch}
+        onSync={syncPodiumToBracket}
+      />
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { loadAllLocks } from '@/lib/scoring/locks';
 
 import { loadGroupMatches } from './load-group-matches';
 import { loadGroupTeams } from './load-group-teams';
+import { loadKnockoutMatches } from './load-knockout';
 import { loadPodium } from './load-podium';
 import { loadUserPredictions } from './load-predictions';
 
@@ -15,13 +16,19 @@ export default async function PorraPage() {
     redirect('/login');
   }
 
-  const [initialData, groupMatchesCatalog, groupTeamsCatalog, podiumData] =
-    await Promise.all([
-      loadUserPredictions(user.id),
-      loadGroupMatches(),
-      loadGroupTeams(),
-      loadPodium(user.id),
-    ]);
+  const [
+    initialData,
+    groupMatchesCatalog,
+    groupTeamsCatalog,
+    knockoutCatalog,
+    podiumData,
+  ] = await Promise.all([
+    loadUserPredictions(user.id),
+    loadGroupMatches(),
+    loadGroupTeams(),
+    loadKnockoutMatches(),
+    loadPodium(user.id),
+  ]);
   const locks = loadAllLocks();
 
   return (
@@ -47,6 +54,7 @@ export default async function PorraPage() {
         locks={locks}
         groupMatchesCatalog={groupMatchesCatalog}
         groupTeamsCatalog={groupTeamsCatalog}
+        knockoutCatalog={knockoutCatalog}
         podium={podiumData}
       />
     </main>
