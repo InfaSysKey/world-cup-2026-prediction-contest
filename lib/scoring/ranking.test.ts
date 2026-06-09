@@ -352,6 +352,15 @@ describe('extractRankingMetrics — lee las métricas de §7 del desglose de sco
 
   it('el orden de las filas de entrada es indiferente', () => {
     const shuffled = [rows[3], rows[6], rows[0], rows[5], rows[1], rows[4], rows[2]];
-    expect(extractRankingMetrics(shuffled)).toEqual(extractRankingMetrics(rows));
+    expect(extractRankingMetrics(shuffled)).toEqual({
+      totalPoints: 286,
+      exactGroupMatches: 9,
+      bracketHits: 8,
+      championHit: true,
+      runnerUpHit: false,
+      thirdHit: true,
+      exactGroups: 3,
+      awardHits: 2,
+    });
   });
 });
