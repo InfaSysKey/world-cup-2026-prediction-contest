@@ -232,12 +232,29 @@ export function PorraStepper({
 
   const router = useRouter();
 
+  // Al cambiar de tab de forma PROGRAMÁTICA (footer, huecos, mismatch) Radix no
+  // mueve el foco como sí hace al pulsar un trigger; lo llevamos nosotros al panel
+  // activo (role="tabpanel", tabindex 0) para que teclado y lector de pantalla no
+  // se queden anclados en el footer. Se difiere porque Radix monta el panel al
+  // activarlo.
+  const focusActivePanel = useCallback(() => {
+    setTimeout(() => {
+      document
+        .querySelector<HTMLElement>('[role="tabpanel"][data-state="active"]')
+        ?.focus();
+    }, 60);
+  }, []);
+
   // Navega al tab indicado (huecos) o al tab + ancla de un mismatch, haciendo
   // scroll al elemento. Radix monta el contenido del tab al activarlo, así que
   // el scroll se difiere a la siguiente vuelta del event loop.
-  const goToTab = useCallback((tabId: string) => {
-    setActive(tabId);
-  }, []);
+  const goToTab = useCallback(
+    (tabId: string) => {
+      setActive(tabId);
+      focusActivePanel();
+    },
+    [focusActivePanel],
+  );
 
   const goToMismatch = useCallback(
     (m: Mismatch) => {
@@ -250,13 +267,14 @@ export function PorraStepper({
         }
       }
       setActive(tabId);
+      focusActivePanel();
       setTimeout(() => {
         document
           .querySelector(`[data-testid="${m.anchor}"]`)
           ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }, 60);
     },
-    [phaseByMatch],
+    [phaseByMatch, focusActivePanel],
   );
 
   // Sincroniza un puesto del podio con la deducción del bracket desde el panel.

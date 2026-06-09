@@ -7,8 +7,8 @@
  *   - La página /porra pasa a PorraStepper los standings iniciales.
  *   - Después de que el usuario predice el orden de un grupo, la posición 3
  *     queda reflejada en initialData.groupStandings (PredictionGroupStanding[]).
- *   - lib/validators/cross-tab.ts expone checkBestThirdsCoherence, que recibe
- *     un StandingEntry[] y un BestThirdEntry[] y devuelve CrossTabIssue[].
+ *   - lib/validators/cross-tab.ts expone analyzeBestThirdsStale, que recibe
+ *     un StandingEntry[] y un BestThirdEntry[] y devuelve BestThirdStale[].
  *   - Verificamos que después de guardar el orden del grupo A, el tercer equipo
  *     predicho es accesible desde la UI (el DOM refleja la posición 3).
  *
@@ -142,7 +142,7 @@ test('cross-tab CT3 – después de ordenar todos los grupos, hay exactamente 12
 
   // Para el tab Mejores Terceros (sub-slice 4.4), el formato esperado es:
   //   standings.filter(s => s.position === 3) → Array de 12 teams (uno por grupo)
-  // cross-tab.ts checkBestThirdsCoherence recibirá exactamente ese array.
+  // cross-tab.ts analyzeBestThirdsStale recibirá exactamente ese array.
   //
   // Lo que verificamos AHORA (antes de que el tab exista):
   //   - Los equipos del DOM en posición 3 son códigos ISO válidos.

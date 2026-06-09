@@ -198,6 +198,65 @@ describe('computePorraSummary', () => {
     expect(s.tabs.premios.status).toBe('revisar');
   });
 
+  // Completitud del tab de premios (summarizePremios): 6 nombres llenos y
+  // distintos → completa; cualquier hueco → incompleta con el conteo exacto.
+  const premiosAwards = (
+    names: Partial<Record<string, string | null>>,
+  ): SummaryPredictions['awards'] =>
+    (
+      ['boot_gold', 'boot_silver', 'boot_bronze', 'ball_gold', 'ball_silver', 'ball_bronze'] as const
+    ).map((kind) => ({ kind, teamCode: null, playerName: names[kind] ?? null }));
+
+  it('premios: 6 nombres distintos → completa, 0 huecos', () => {
+    const p: SummaryPredictions = {
+      ...EMPTY,
+      awards: premiosAwards({
+        boot_gold: 'P1',
+        boot_silver: 'P2',
+        boot_bronze: 'P3',
+        ball_gold: 'P4',
+        ball_silver: 'P5',
+        ball_bronze: 'P6',
+      }),
+    };
+    const s = computePorraSummary(p, catalog);
+    expect(s.tabs.premios.gaps).toBe(0);
+    expect(s.tabs.premios.mismatches).toHaveLength(0);
+    expect(s.tabs.premios.status).toBe('completa');
+  });
+
+  it('premios: 4 de 6 llenos → incompleta con 2 huecos', () => {
+    const p: SummaryPredictions = {
+      ...EMPTY,
+      awards: premiosAwards({
+        boot_gold: 'P1',
+        boot_silver: 'P2',
+        boot_bronze: 'P3',
+        ball_gold: 'P4',
+      }),
+    };
+    const s = computePorraSummary(p, catalog);
+    expect(s.tabs.premios.gaps).toBe(2);
+    expect(s.tabs.premios.status).toBe('incompleta');
+  });
+
+  it('premios: nombre de solo espacios cuenta como vacío', () => {
+    const p: SummaryPredictions = {
+      ...EMPTY,
+      awards: premiosAwards({
+        boot_gold: 'P1',
+        boot_silver: 'P2',
+        boot_bronze: 'P3',
+        ball_gold: 'P4',
+        ball_silver: 'P5',
+        ball_bronze: '   ',
+      }),
+    };
+    const s = computePorraSummary(p, catalog);
+    expect(s.tabs.premios.gaps).toBe(1);
+    expect(s.tabs.premios.status).toBe('incompleta');
+  });
+
   it('bracket parcial (solo final, incoherente) → huecos en knockout y mismatch activo', () => {
     const p: SummaryPredictions = {
       ...EMPTY,
