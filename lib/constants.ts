@@ -71,5 +71,29 @@ export type PorraTabId = (typeof PORRA_TABS)[number]['id'];
 // Número de mejores terceros que clasifican a 1/16 (scoring-rules.md §2.4).
 export const BEST_THIRDS_COUNT = 8;
 
+// Qué fase de eliminatorias representa cada tab del bracket en el stepper. El
+// stepper tiene un tab por ronda; la fase (valor de matches.phase) es la clave
+// para filtrar los cruces de resolve-bracket. Mantener en sync con PORRA_TABS.
+export const BRACKET_TAB_PHASE = {
+  dieciseisavos: '1/16',
+  octavos: '1/8',
+  cuartos: 'cuartos',
+  semis: 'semi',
+  'tercer-puesto': '3-4',
+  final: 'final',
+} as const;
+export type BracketTabId = keyof typeof BRACKET_TAB_PHASE;
+
+// Nº de cruces por fase eliminatoria (seed/matches.ts), para los indicadores de
+// completitud de cada tab del bracket.
+export const KNOCKOUT_MATCHES_PER_PHASE = {
+  '1/16': 16,
+  '1/8': 8,
+  cuartos: 4,
+  semi: 2,
+  '3-4': 1,
+  final: 1,
+} as const;
+
 // Debounce del autosave del formulario (skill add-prediction-type).
 export const AUTOSAVE_DEBOUNCE_MS = 800;

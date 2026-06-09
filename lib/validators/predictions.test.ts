@@ -6,6 +6,7 @@ import {
   groupMatchPredictionsBatchSchema,
   groupStandingPredictionSchema,
   groupStandingsBatchSchema,
+  knockoutPredictionSchema,
   playerAwardsPredictionSchema,
   podiumPredictionSchema,
 } from './predictions';
@@ -370,6 +371,40 @@ describe('playerAwardsPredictionSchema', () => {
     const r = playerAwardsPredictionSchema.safeParse({
       ...EMPTY_AWARDS,
       bootGold: 'a'.repeat(81),
+    });
+    expect(r.success).toBe(false);
+  });
+});
+
+describe('knockoutPredictionSchema', () => {
+  it('acepta un cruce de eliminatorias con ganador válido', () => {
+    const r = knockoutPredictionSchema.safeParse({
+      matchId: 73,
+      winnerTeamCode: 'ESP',
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it('rechaza un matchId de fase de grupos (1–72)', () => {
+    const r = knockoutPredictionSchema.safeParse({
+      matchId: 50,
+      winnerTeamCode: 'ESP',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza un matchId fuera del rango de eliminatorias', () => {
+    const r = knockoutPredictionSchema.safeParse({
+      matchId: 105,
+      winnerTeamCode: 'ESP',
+    });
+    expect(r.success).toBe(false);
+  });
+
+  it('rechaza un code de equipo mal formado', () => {
+    const r = knockoutPredictionSchema.safeParse({
+      matchId: 104,
+      winnerTeamCode: 'es',
     });
     expect(r.success).toBe(false);
   });

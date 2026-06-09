@@ -11,6 +11,7 @@ import {
   predictionsBestThirds,
   predictionsGroupMatches,
   predictionsGroupStandings,
+  predictionsKnockout,
   teams,
 } from '@/lib/db';
 import { logger } from '@/lib/logger';
@@ -19,12 +20,14 @@ import {
   isBestThirdsLocked,
   isGroupMatchPredictionLocked,
   isGroupStandingsLocked,
+  isKnockoutLocked,
 } from '@/lib/scoring/locks';
 import type { ApiResult } from '@/lib/types';
 import {
   bestThirdsBatchSchema,
   groupMatchPredictionsBatchSchema,
   groupStandingsBatchSchema,
+  knockoutPredictionSchema,
   playerAwardsPredictionSchema,
   podiumPredictionSchema,
 } from '@/lib/validators/predictions';
@@ -334,6 +337,74 @@ export async function savePlayerAwardsPrediction(
 
   revalidatePath('/porra');
   return { data: { saved: filled.length } };
+}
+
+// --- Bracket eliminatorio (predictions_knockout) ---
+
+// Una predicción por cruce: el usuario pulsa el ganador y se guarda al vuelo.
+// Bracket RÍGIDO (ADR 0003): NO validamos que el equipo elegido juegue realmente
+// ese cruce según el resto de predicciones; esa coherencia es warning cross-tab
+// y se refleja en el resumen global (sub-slice 4.8). Aquí solo: el partido es de
+// eliminatorias y el equipo existe en el catálogo.
+export async function saveKnockoutPrediction(
+  input: unknown,
+): Promise<ApiResult<{ saved: number }>> {
+  const user = await getCurrentUser();
+  if (!user) {
+    return { error: { code: 'UNAUTHENTICATED', message: 'Sesión requerida.' } };
+  }
+
+  if (isKnockoutLocked()) {
+    return {
+      error: { code: 'LOCKED', message: 'Las predicciones ya están bloqueadas.' },
+    };
+  }
+
+  const parsed = knockoutPredictionSchema.safeParse(input);
+  if (!parsed.success) {
+    return { error: { code: 'INVALID_INPUT', message: 'Datos inválidos.' } };
+  }
+
+  const [matchRow] = await db
+    .select({ id: matches.id, phase: matches.phase })
+    .from(matches)
+    .where(eq(matches.id, parsed.data.matchId));
+  if (!matchRow || matchRow.phase === 'grupos') {
+    return {
+      error: { code: 'INVALID_INPUT', message: 'El cruce no es de eliminatorias.' },
+    };
+  }
+
+  const [teamRow] = await db
+    .select({ code: teams.code })
+    .from(teams)
+    .where(eq(teams.code, parsed.data.winnerTeamCode));
+  if (!teamRow) {
+    return { error: { code: 'INVALID_INPUT', message: 'Algún equipo no existe.' } };
+  }
+
+  try {
+    await db
+      .insert(predictionsKnockout)
+      .values({
+        userId: user.id,
+        matchId: parsed.data.matchId,
+        winnerTeamCode: parsed.data.winnerTeamCode,
+      })
+      .onConflictDoUpdate({
+        target: [predictionsKnockout.userId, predictionsKnockout.matchId],
+        set: {
+          winnerTeamCode: parsed.data.winnerTeamCode,
+          updatedAt: new Date(),
+        },
+      });
+  } catch (err) {
+    logger.error('saveKnockoutPrediction failed', { err, userId: user.id });
+    return internalError();
+  }
+
+  revalidatePath('/porra');
+  return { data: { saved: 1 } };
 }
 
 // --- Orden de cada grupo (predictions_group_standings) ---

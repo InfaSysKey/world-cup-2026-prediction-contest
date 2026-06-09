@@ -122,6 +122,27 @@ export const bestThirdsBatchSchema = z
   });
 export type BestThirdsBatchInput = z.infer<typeof bestThirdsBatchSchema>;
 
+// --- Bracket eliminatorio (predictions_knockout) ---
+
+// El usuario predice el ganador de un cruce cada vez que pulsa: una predicción
+// por partido. Los ids de eliminatorias van del 73 al 104 (data-model.md §4.4,
+// seed/matches.ts). El winner es un code de equipo; la coherencia "ese equipo
+// jugó realmente el cruce" es warning cross-tab (bracket rígido, ADR 0003), no
+// se valida aquí. La existencia del team_code en `teams` se comprueba en la
+// Server Action.
+const KNOCKOUT_MATCH_ID_MIN = 73;
+const KNOCKOUT_MATCH_ID_MAX = 104;
+
+export const knockoutPredictionSchema = z.object({
+  matchId: z
+    .number()
+    .int()
+    .min(KNOCKOUT_MATCH_ID_MIN)
+    .max(KNOCKOUT_MATCH_ID_MAX),
+  winnerTeamCode: teamCode,
+});
+export type KnockoutPredictionInput = z.infer<typeof knockoutPredictionSchema>;
+
 // --- Podio (predictions_awards, kinds champion/runner_up/third) ---
 
 // El podio se guarda como un único objeto con los 3 puestos para validar la
