@@ -71,21 +71,26 @@ function teamLabel(teams: ReadonlyTeamMap, code: string | null): string {
 }
 
 function Section({
+  testId,
   title,
   hidden,
   empty,
   children,
 }: {
+  testId: string;
   title: string;
   hidden: boolean;
   empty: boolean;
   children?: React.ReactNode;
 }) {
   return (
-    <Card className="w-full max-w-3xl gap-3 p-4">
+    <Card data-testid={testId} className="w-full max-w-3xl gap-3 p-4">
       <h2 className="text-lg font-semibold">{title}</h2>
       {hidden ? (
-        <p className="text-sm text-muted-foreground">
+        <p
+          data-testid={`${testId}-locked`}
+          className="text-sm text-muted-foreground"
+        >
           🔒 Se desbloquea cuando empiece el torneo.
         </p>
       ) : empty ? (
@@ -130,6 +135,7 @@ export function PorraReadonly({
   return (
     <div className="flex w-full flex-col items-center gap-4">
       <Section
+        testId="ro-groupMatches"
         title="Marcadores de grupos"
         hidden={hiddenSections.has('groupMatches')}
         empty={predictions.groupMatches.length === 0}
@@ -164,6 +170,7 @@ export function PorraReadonly({
       </Section>
 
       <Section
+        testId="ro-groupStandings"
         title="Clasificación de grupos"
         hidden={hiddenSections.has('groupStandings')}
         empty={predictions.groupStandings.length === 0}
@@ -188,6 +195,7 @@ export function PorraReadonly({
       </Section>
 
       <Section
+        testId="ro-bestThirds"
         title="Mejores terceros"
         hidden={hiddenSections.has('bestThirds')}
         empty={predictions.bestThirds.length === 0}
@@ -203,6 +211,7 @@ export function PorraReadonly({
       </Section>
 
       <Section
+        testId="ro-knockout"
         title="Bracket eliminatorio"
         hidden={hiddenSections.has('knockout')}
         empty={predictions.knockout.length === 0}
@@ -234,6 +243,7 @@ export function PorraReadonly({
       </Section>
 
       <Section
+        testId="ro-awards"
         title="Podio y premios"
         hidden={hiddenSections.has('awards')}
         empty={predictions.awards.length === 0}

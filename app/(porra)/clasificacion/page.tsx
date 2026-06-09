@@ -78,6 +78,7 @@ export default async function ClasificacionPage() {
                 return (
                   <TableRow
                     key={p.userId}
+                    data-testid="ranking-row"
                     className={cn(isMe && 'bg-muted/60 font-medium')}
                   >
                     <TableCell className="text-right tabular-nums text-muted-foreground">
