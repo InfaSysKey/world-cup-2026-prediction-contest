@@ -9,18 +9,15 @@
  *   - data-testid="podio-mismatch-{kind}"  → aviso amber
  *   - data-testid="podio-sync-{kind}"      → botón "Sincronizar con bracket"
  *
- * Estos tests requieren un estado previo de bracket que cause desincronización.
- * Hasta que el tab de bracket (sub-slice 4.5) exista con UI completa, los
- * escenarios que necesitan manipular predictions_knockout se marcan test.skip.
+ * Estos tests siembran el estado previo de bracket en BD con
+ * seedKnockoutWinner / seedPodiumBracket (el desfase stale = podio guardado que
+ * deja de coincidir con la deducción del bracket).
  *
  * STALE-1  Sin bracket → no hay mismatches, no aparecen avisos de sync.
- * STALE-2  Podio guardado, cambia bracket → aviso de mismatch visible por puesto.
- *          (skip hasta 4.5)
+ * STALE-2  Podio guardado, el bracket apunta a otro campeón → aviso de mismatch.
  * STALE-3  Click "Sincronizar con bracket" en un campo → actualiza ese campo,
  *          autosave, persiste. Los otros campos no se tocan.
- *          (skip hasta 4.5)
  * STALE-4  Los 3 puestos stale → 3 avisos y 3 botones independientes.
- *          (skip hasta 4.5)
  * STALE-5  Indicador de completitud del tab marca "revisar" (no "completo")
  *          mientras hay mismatch, aunque los 3 campos tengan valor. ACTIVO:
  *          siembra el ganador de la final en BD para forzar un mismatch sin
@@ -33,8 +30,12 @@
 import { expect, test } from '@playwright/test';
 
 import { registerAndLand, registerAndLandIdentity } from '../fixtures/auth-helpers';
-import { seedKnockoutWinner } from '../fixtures/knockout-helpers';
+import {
+  seedKnockoutWinner,
+  seedPodiumBracket,
+} from '../fixtures/knockout-helpers';
 import { gotoPodio, pickPodio, podioTeamCodes } from '../fixtures/podio-helpers';
+import { waitForFreshSave } from '../fixtures/wait-helpers';
 
 // ---------------------------------------------------------------------------
 // STALE-1: Sin bracket → no aparecen avisos de mismatch
@@ -59,42 +60,83 @@ test('podio stale-1 – sin bracket, no hay avisos de desincronización visibles
 });
 
 // ---------------------------------------------------------------------------
-// STALE-2..4: Requieren bracket previo — skipped hasta 4.5
+// STALE-2..4: bracket sembrado en BD (seedKnockoutWinner / seedPodiumBracket)
 // ---------------------------------------------------------------------------
 
-test.skip(
-  'podio stale-2 – podio guardado con champion=MEX, bracket cambia winner a USA → aviso de mismatch en champion',
-  // TODO: enable en 4.5. Flujo:
-  //   1. Registrar usuario.
-  //   2. Guardar champion=MEX en podio vía UI.
-  //   3. Crear/cambiar predictions_knockout final→USA (vía tab 4.5 o endpoint de test).
-  //   4. Recargar /porra y abrir tab Podio.
-  //   5. El aviso "podio-mismatch-champion" está visible.
-  //   6. El texto dice "No coincide con tu predicción del bracket (USA)."
-  //   7. El botón "Sincronizar" está visible.
-  //   8. El campo champion en BD sigue siendo MEX (no se ha sobrescrito).
-  async () => {},
-);
+test('podio stale-2 – campeón guardado pero el bracket apunta a otro → aviso de mismatch', async ({
+  browser,
+}) => {
+  const { page, email } = await registerAndLandIdentity(browser);
+  await gotoPodio(page);
 
-test.skip(
-  'podio stale-3 – click en "Sincronizar con bracket" del campeón actualiza solo champion, el resto intacto',
-  // TODO: enable en 4.5.
-  // Tras el click en podio-sync-champion:
-  //   - El select champion pasa a mostrar el valor del bracket.
-  //   - El autosave dispara (esperar indicador "Guardado").
-  //   - El aviso podio-mismatch-champion desaparece.
-  //   - runnerUp y third no cambian (aunque también estén stale).
-  async () => {},
-);
+  // El usuario guarda champion = a por UI.
+  const [a, b] = await podioTeamCodes(page, 2);
+  await pickPodio(page, 'champion', a);
 
-test.skip(
-  'podio stale-4 – los 3 puestos stale → 3 avisos y 3 botones "Sincronizar" independientes',
-  // TODO: enable en 4.5.
-  // Setup: podio guardado con valores A, B, C. Bracket apunta a X, Y, Z (distintos).
-  // Resultado: podio-mismatch-champion, podio-mismatch-runnerUp, podio-mismatch-third
-  //            todos visibles. El usuario puede sincronizar uno, dos o los tres.
-  async () => {},
-);
+  // El bracket predice un campeón distinto (final → b). Se siembra en BD.
+  await seedKnockoutWinner(email, 'final', b);
+  await page.reload();
+  await gotoPodio(page);
+
+  // Aviso de desincronización visible y botón "Sincronizar" presente.
+  const mismatch = page.getByTestId('podio-mismatch-champion');
+  await expect(mismatch).toBeVisible();
+  await expect(mismatch).toContainText('No coincide con tu predicción del bracket');
+  await expect(page.getByTestId('podio-sync-champion')).toBeVisible();
+
+  // El valor guardado NO se ha sobrescrito: sigue siendo a.
+  await expect(page.getByTestId('podio-select-champion')).toHaveValue(a);
+});
+
+test('podio stale-3 – "Sincronizar" del campeón actualiza solo champion, el resto intacto', async ({
+  browser,
+}) => {
+  const { page, email } = await registerAndLandIdentity(browser);
+  await gotoPodio(page);
+
+  // Guardar los 3 puestos: champion = a, runnerUp = c, third = d.
+  const [a, b, c, d] = await podioTeamCodes(page, 4);
+  await pickPodio(page, 'champion', a);
+  await pickPodio(page, 'runnerUp', c);
+  await pickPodio(page, 'third', d);
+
+  // Solo la final del bracket (→ b) desincroniza al campeón.
+  await seedKnockoutWinner(email, 'final', b);
+  await page.reload();
+  await gotoPodio(page);
+
+  await expect(page.getByTestId('podio-mismatch-champion')).toBeVisible();
+  await page.getByTestId('podio-sync-champion').click();
+  await waitForFreshSave(page, 'podio-autosave-status');
+
+  // El campeón pasa al valor del bracket; el aviso desaparece; el resto intacto.
+  await expect(page.getByTestId('podio-select-champion')).toHaveValue(b);
+  await expect(page.getByTestId('podio-mismatch-champion')).not.toBeVisible();
+  await expect(page.getByTestId('podio-select-runnerUp')).toHaveValue(c);
+  await expect(page.getByTestId('podio-select-third')).toHaveValue(d);
+});
+
+test('podio stale-4 – los 3 puestos stale → 3 avisos y 3 botones "Sincronizar"', async ({
+  browser,
+}) => {
+  const { page, email } = await registerAndLandIdentity(browser);
+  await gotoPodio(page);
+
+  // Guardar A/B/C; el bracket deducirá D/E/F (todos distintos).
+  const [a, b, c, d, e, f] = await podioTeamCodes(page, 6);
+  await pickPodio(page, 'champion', a);
+  await pickPodio(page, 'runnerUp', b);
+  await pickPodio(page, 'third', c);
+
+  await seedPodiumBracket(email, d, e, f);
+  await page.reload();
+  await gotoPodio(page);
+
+  for (const key of ['champion', 'runnerUp', 'third'] as const) {
+    await expect(page.getByTestId(`podio-mismatch-${key}`)).toBeVisible();
+    await expect(page.getByTestId(`podio-sync-${key}`)).toBeVisible();
+  }
+});
 
 // ---------------------------------------------------------------------------
 // STALE-5: Indicador de completitud con mismatch → "revisar" (no "completo")

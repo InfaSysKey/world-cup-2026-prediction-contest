@@ -8,13 +8,18 @@
  *
  * El flujo "con bracket → sugerencia pendiente que se confirma o edita" se cubre
  * a nivel unitario en lib/scoring/porra-summary.test.ts (estados
- * persisted/suggested). Su cobertura e2e, que necesita sembrar
- * predictions_knockout, se abordará al reactivar la suite de podio (MAYOR 2 del
- * informe ultracode).
+ * persisted/suggested) y, e2e, en el segundo test de este archivo (sembrando la
+ * final con seedKnockoutWinner).
  */
 import { expect, test } from '@playwright/test';
 
-import { registerAndLand } from '../fixtures/auth-helpers';
+import {
+  registerAndLand,
+  registerAndLandIdentity,
+} from '../fixtures/auth-helpers';
+import { seedKnockoutWinner } from '../fixtures/knockout-helpers';
+import { gotoPodio, podioTeamCodes } from '../fixtures/podio-helpers';
+import { waitForFreshSave } from '../fixtures/wait-helpers';
 
 test('podio sin bracket – los 3 selects arrancan vacíos y los hints lo indican', async ({
   browser,
@@ -46,4 +51,37 @@ test('podio sin bracket – los 3 selects arrancan vacíos y los hints lo indica
   await expect(page.getByTestId('podio-suggested-champion')).not.toBeVisible();
   await expect(page.getByTestId('podio-suggested-runnerUp')).not.toBeVisible();
   await expect(page.getByTestId('podio-suggested-third')).not.toBeVisible();
+});
+
+test('podio con bracket – el campeón aparece sugerido (pendiente) y se persiste al confirmar', async ({
+  browser,
+}) => {
+  const { page, email } = await registerAndLandIdentity(browser);
+
+  // Leer un code válido para sembrar el ganador de la final.
+  await gotoPodio(page);
+  const [d] = await podioTeamCodes(page, 1);
+  await seedKnockoutWinner(email, 'final', d);
+  await page.reload();
+  await gotoPodio(page);
+
+  // El select del campeón muestra el valor sugerido y aparece el aviso pendiente.
+  await expect(page.getByTestId('podio-select-champion')).toHaveValue(d);
+  await expect(page.getByTestId('podio-suggested-champion')).toBeVisible();
+
+  // Sin confirmar, el indicador del tab está en "revisar": no es hueco, pero la
+  // sugerencia no se ha confirmado (no se persiste sola, ADR 0005).
+  await expect(page.getByTestId('porra-tab-mark-podio')).toHaveAttribute(
+    'aria-label',
+    'revisar',
+  );
+
+  // Confirmar persiste el valor y quita el estado pendiente.
+  await page.getByTestId('podio-confirm-champion').click();
+  await waitForFreshSave(page, 'podio-autosave-status');
+  await page.reload();
+  await gotoPodio(page);
+
+  await expect(page.getByTestId('podio-select-champion')).toHaveValue(d);
+  await expect(page.getByTestId('podio-suggested-champion')).not.toBeVisible();
 });
