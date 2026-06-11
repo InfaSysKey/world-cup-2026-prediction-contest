@@ -57,7 +57,7 @@ export function PodioTab({
   const teamLabel = useMemo(() => {
     const map = new Map<string, string>();
     for (const team of options) {
-      map.set(team.code, `${team.flag} ${team.name}`);
+      map.set(team.code, team.name);
     }
     return map;
   }, [options]);

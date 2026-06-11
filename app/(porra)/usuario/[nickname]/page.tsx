@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 
 import { loadGroupMatches } from '@/app/(porra)/porra/load-group-matches';
 import { loadKnockoutMatches } from '@/app/(porra)/porra/load-knockout';
+import { PlayerAvatar } from '@/components/porra/player-avatar';
 import {
   PorraReadonly,
   type PorraReadonlySection,
@@ -64,11 +65,14 @@ export default async function UsuarioPage({
 
   return (
     <main className="flex flex-1 flex-col items-center gap-6 p-4 sm:p-8">
-      <div className="w-full max-w-3xl">
-        <h1 className="text-2xl font-semibold">Porra de {target.nickname}</h1>
-        <p className="text-sm text-muted-foreground">
-          Solo se muestran las predicciones ya bloqueadas.
-        </p>
+      <div className="flex w-full max-w-3xl items-center gap-3">
+        <PlayerAvatar nick={target.nickname} size="lg" />
+        <div className="min-w-0">
+          <h1 className="text-display-l truncate">Porra de {target.nickname}</h1>
+          <p className="text-sm text-ink-muted">
+            Solo se muestran las predicciones ya bloqueadas.
+          </p>
+        </div>
       </div>
       <PorraReadonly
         predictions={predictions}

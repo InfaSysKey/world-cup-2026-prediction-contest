@@ -8,6 +8,7 @@ import type {
   GroupTeamsCatalog,
 } from '@/app/(porra)/porra/load-group-teams';
 import { SortableList, type SortableItem } from '@/components/porra/sortable-list';
+import { TeamLabel } from '@/components/porra/team-label';
 import { BEST_THIRDS_COUNT } from '@/lib/constants';
 import type { PredictionBestThird, PredictionGroupStanding } from '@/lib/db';
 import { useAutoSave } from '@/lib/hooks/use-auto-save';
@@ -141,9 +142,9 @@ export function BestThirdsTab({
     commit(orderedIds);
   }
 
-  function label(code: string): string {
+  function label(code: string): React.ReactNode {
     const team = teamLabel.get(code);
-    return team ? `${team.flag} ${team.name}` : code;
+    return team ? <TeamLabel flagCode={team.flagCode} name={team.name} /> : code;
   }
 
   // --- Empty state: ningún grupo tiene 3.º predicho y nada seleccionado ---

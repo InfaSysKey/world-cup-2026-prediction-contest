@@ -1,6 +1,13 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
-import { db, scores, SCORE_CATEGORIES, users, type ScoreCategory } from '@/lib/db';
+import {
+  db,
+  scoreRecalculations,
+  scores,
+  SCORE_CATEGORIES,
+  users,
+  type ScoreCategory,
+} from '@/lib/db';
 import {
   extractRankingMetrics,
   type RankingPlayer,
@@ -66,4 +73,19 @@ export async function loadRanking(): Promise<RankingRow[]> {
     },
     categoryPoints: pointsByUser.get(u.id) ?? emptyCategoryPoints(),
   }));
+}
+
+// Snapshot de posiciones del recálculo ANTERIOR, base de los deltas ▲/▼
+// (data-model §5.5). El más reciente refleja el ranking actual, así que la base
+// es el penúltimo. null si aún no hay 2 recálculos (sin delta que mostrar).
+export async function loadPreviousPositions(): Promise<Record<
+  string,
+  number
+> | null> {
+  const rows = await db
+    .select({ positions: scoreRecalculations.positions })
+    .from(scoreRecalculations)
+    .orderBy(desc(scoreRecalculations.createdAt), desc(scoreRecalculations.id))
+    .limit(2);
+  return rows[1]?.positions ?? null;
 }

@@ -36,6 +36,11 @@ import {
 } from './compute';
 import type { KnockoutPhase } from './knockout';
 import type { PodiumKind, PodiumOfficial, PodiumPicks } from './podium';
+import {
+  extractRankingMetrics,
+  snapshotPositions,
+  type RankingPlayer,
+} from './ranking';
 
 export { affectedCategoriesFor, computeScoreRows };
 export type { ResultChange, ScoringInputs };
@@ -319,17 +324,34 @@ export async function recalculateAfterResultChangeWithTx(
   adminUserId: number,
 ): Promise<void> {
   const categories = affectedCategoriesFor(change);
-  const allUsers = await exec.select({ id: users.id }).from(users);
+  const allUsers = await exec
+    .select({
+      id: users.id,
+      nickname: users.nickname,
+      isAdmin: users.isAdmin,
+    })
+    .from(users);
+  // Para el snapshot de posiciones: el ranking (data-model §6.1) excluye admins.
+  const players: RankingPlayer[] = [];
   for (const u of allUsers) {
     const inputs = await loadScoringInputs(exec, u.id);
     const rows = computeScoreRows(inputs);
     await persistScoreRows(exec, u.id, rows, categories);
+    if (!u.isAdmin) {
+      players.push({
+        userId: u.id,
+        nickname: u.nickname,
+        metrics: extractRankingMetrics(rows),
+      });
+    }
   }
   await exec.insert(scoreRecalculations).values({
     triggeredBy: adminUserId,
     reason: CHANGE_REASON[change.type],
     affectedCategories: categories,
     usersAffected: allUsers.length,
+    // Snapshot { userId: rank } para los deltas ▲/▼ del ranking (§5.5).
+    positions: snapshotPositions(players),
   });
 }
 

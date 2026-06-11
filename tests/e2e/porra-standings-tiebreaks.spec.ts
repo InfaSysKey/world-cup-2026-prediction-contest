@@ -1,31 +1,36 @@
 /**
- * Cobertura de los DESEMPATES de grupo (scoring-rules.md §2.3), sub-slice 4.3.
+ * Cobertura de los DESEMPATES de grupo (scoring-rules.md §2.3 / ADR 0007),
+ * sub-slice 4.3, rediseño slice 10.
  *
  * Regla de negocio:
- *   - Cuando los marcadores predichos generan empate a puntos entre equipos del
- *     mismo grupo, el formulario muestra un sub-componente de desempate con los
- *     equipos empatados en una SortableList arrastrable (data-testid gs-tiebreak-*).
- *   - Si no hay empate matemático, el sub-componente NO aparece.
- *   - Varios empates independientes en el mismo grupo aparecen como bloques
- *     separados (hasta 6 según §2.3).
- *   - El desempate se guarda junto con el orden global del grupo (autosave).
+ *   - El desempate solo se evalúa cuando el grupo está COMPLETO (6 marcadores).
+ *   - Se considera empate únicamente a los equipos iguales en la cadena
+ *     puntos → diferencia de goles → goles a favor. Si GD o GF ya los separan,
+ *     NO hay empate aunque coincidan los puntos.
+ *   - No hay un segundo control: los equipos empatados se RESALTAN dentro de la
+ *     lista de orden del grupo (li[data-tied="true"]) y debajo aparece una nota
+ *     (gs-tie-note-<grupo>). El orden que el usuario les dé en esa misma lista es
+ *     su desempate, y se guarda con el autosave del orden de grupo.
  *
- * Grupo A del seed, orden en el DOM (scheduled_at ASC):
- *   nth(0) id=1:  MEX vs ZAF  (J1)
- *   nth(1) id=2:  KOR vs CZE  (J1)
- *   nth(2) id=25: CZE vs ZAF  (J2)
- *   nth(3) id=28: MEX vs KOR  (J2)
- *   nth(4) id=54: ZAF vs KOR  (J3)  ← NOTA: el id 54 precede al 53 en el DOM
- *   nth(5) id=53: CZE vs MEX  (J3)
+ * Grupo A del seed, orden en el DOM de los marcadores (scheduled_at ASC):
+ *   nth(0) MEX vs ZAF
+ *   nth(1) KOR vs CZE
+ *   nth(2) CZE vs ZAF
+ *   nth(3) MEX vs KOR
+ *   nth(4) ZAF vs KOR
+ *   nth(5) CZE vs MEX
+ *
+ * Orden por defecto de la lista de orden (equipos por código ASC): CZE, KOR, MEX, ZAF.
  *
  * Casos:
- *   T1.  Sin marcadores: el sub-componente no aparece.
- *   T1b. Marcadores sin empate: el sub-componente no aparece.
- *   T2.  Empate entre 2 equipos: aparece el desempate, se reordena, autosave, persiste.
- *   T3.  Empate triple (3 equipos): aparece con 3 equipos arrastrables.
- *   T4.  Dos bloques de empate en el mismo grupo: ambos bloques aparecen y guardan.
- *   T5.  Cambio de marcador que ROMPE el empate: sub-componente desaparece.
- *   T5b. Restituir el marcador que vuelve a empatar: sub-componente reaparece.
+ *   T1.  Sin marcadores: no hay filas resaltadas ni nota.
+ *   T1b. Marcadores sin empate (puntos distintos): no hay resaltado.
+ *   Tgd. Empate SOLO a puntos roto por diferencia de goles: no hay resaltado.
+ *   T2.  Empate real entre 2 equipos: se resaltan, se reordena, autosave, persiste.
+ *   T3.  Empate real triple: 3 filas resaltadas.
+ *   T4.  Dos bloques empatados en el mismo grupo: las 4 filas resaltadas + nota.
+ *   T5.  Cambiar marcador que ROMPE el empate (por GD): el resaltado desaparece.
+ *   T5b. Restituir el marcador que vuelve a empatar: el resaltado reaparece.
  *
  * Corre con el project "chromium" (TOURNAMENT_START_AT en el futuro).
  */
@@ -41,9 +46,6 @@ import { registerAndLand } from '../fixtures/auth-helpers';
 /**
  * Rellena los 6 marcadores de la primera sección (grupo A) con los scores dados.
  * scores[i] = [local, visitante] para el i-ésimo partido en orden del DOM.
- * Orden real del DOM del grupo A:
- *   nth(0) MEX-ZAF, nth(1) KOR-CZE, nth(2) CZE-ZAF,
- *   nth(3) MEX-KOR, nth(4) ZAF-KOR, nth(5) CZE-MEX
  */
 async function fillGroupA(
   page: Page,
@@ -62,21 +64,16 @@ async function fillGroupA(
   }
 }
 
-/** Lee los IDs de equipo de un bloque de desempate específico. */
-async function tiebreakBlockItems(
-  page: Page,
-  groupLetter: string,
-  blockIndex: number,
-): Promise<string[]> {
-  const block = page.getByTestId(`gs-tiebreak-${groupLetter}-${blockIndex}`);
-  await expect(block).toBeVisible();
-  const items = block.locator('li');
+/** Lee los códigos de equipo RESALTADOS (empatados) de la lista de orden de un grupo. */
+async function tiedRows(page: Page, groupLetter: string): Promise<string[]> {
+  const items = page.locator(
+    `[data-testid="gs-order-${groupLetter}"] > li[data-tied="true"]`,
+  );
   const count = await items.count();
   const codes: string[] = [];
   for (let i = 0; i < count; i++) {
     const tid = await items.nth(i).getAttribute('data-testid');
-    const code = (tid ?? '').replace(`gs-tie-${groupLetter}-${blockIndex}-item-`, '');
-    codes.push(code);
+    codes.push((tid ?? '').replace(`gs-order-${groupLetter}-item-`, ''));
   }
   return codes;
 }
@@ -96,328 +93,228 @@ async function groupOrder(page: Page, groupLetter: string): Promise<string[]> {
 // ---------------------------------------------------------------------------
 // Marcadores precalculados para el grupo A
 //
-// Orden del DOM: nth(0) MEX-ZAF, nth(1) KOR-CZE, nth(2) CZE-ZAF,
-//                nth(3) MEX-KOR, nth(4) ZAF-KOR, nth(5) CZE-MEX
-//
-// SIN EMPATE (MEX=9, KOR=6, CZE=3, ZAF=0):
-//   [3-0, 1-0, 2-0, 1-0, 0-1, 0-1]
-//
-// EMPATE DOBLE MEX=ZAF=2 (KOR=7, CZE=4):
-//   [0-0, 1-0, 2-0, 0-3, 0-0, 0-0]
-//
-// EMPATE TRIPLE MEX=KOR=ZAF=4 (CZE=3):
-//   MEX gana ZAF, KOR gana MEX, ZAF gana KOR (ciclo) + empates con CZE.
-//   [1-0, 0-0, 0-0, 0-1, 1-0, 0-0]
-//   MEX: P0(+3) P5(+1) = 4, KOR: P1(+1) P3(+3) = 4, ZAF: P2(+1) P4(+3) = 4, CZE: P1(+1) P2(+1) P5(+1) = 3
-//
-// DOS BLOQUES MEX=KOR=7 y ZAF=CZE=1:
-//   [3-0, 3-0, 0-0, 0-0, 0-3, 0-3]
-//   MEX: P0(+3) P3(+1) P5(away gana → MEX+3) = 7
-//   KOR: P1(+3) P3(+1) P4(away gana → KOR+3) = 7
-//   CZE: P1(0) P2(+1) P5(0) = 1
-//   ZAF: P0(0) P2(+1) P4(0) = 1
+// DOM: nth0 MEX-ZAF, nth1 KOR-CZE, nth2 CZE-ZAF, nth3 MEX-KOR, nth4 ZAF-KOR, nth5 CZE-MEX
+// (los esperados de pts/GD/GF están calculados a mano, ver tabla en cada bloque)
 // ---------------------------------------------------------------------------
 
+// MEX=9, KOR=6, CZE=3, ZAF=0 → puntos distintos, sin empate.
 const SCORES_NO_TIE: [string, string][] = [
-  ['3', '0'], // nth(0) MEX vs ZAF: MEX gana → MEX+3
-  ['1', '0'], // nth(1) KOR vs CZE: KOR gana → KOR+3
-  ['2', '0'], // nth(2) CZE vs ZAF: CZE gana → CZE+3
-  ['1', '0'], // nth(3) MEX vs KOR: MEX gana → MEX+3
-  ['0', '1'], // nth(4) ZAF vs KOR: KOR gana → KOR+3
-  ['0', '1'], // nth(5) CZE vs MEX: MEX gana → MEX+3
-  // Totales: MEX=9, KOR=6, CZE=3, ZAF=0 → sin empate
+  ['3', '0'],
+  ['1', '0'],
+  ['2', '0'],
+  ['1', '0'],
+  ['0', '1'],
+  ['0', '1'],
 ];
 
-const SCORES_TWO_TEAM_TIE: [string, string][] = [
-  ['0', '0'], // nth(0) MEX vs ZAF: empate → MEX+1, ZAF+1
-  ['1', '0'], // nth(1) KOR vs CZE: KOR gana → KOR+3
-  ['2', '0'], // nth(2) CZE vs ZAF: CZE gana → CZE+3
-  ['0', '3'], // nth(3) MEX vs KOR: KOR gana → KOR+3
-  ['0', '0'], // nth(4) ZAF vs KOR: empate → ZAF+1, KOR+1
-  ['0', '0'], // nth(5) CZE vs MEX: empate → CZE+1, MEX+1
-  // Totales: MEX=2, ZAF=2, KOR=7, CZE=4 → MEX=ZAF=2 (empate doble)
+// MEX=ZAF=2 puntos, pero GD −3 vs −2 → empate SOLO a puntos, separado por GD.
+// (KOR=7, CZE=4.) Bajo la cadena pts→GD→GF NO hay empate que resolver.
+const SCORES_POINTS_TIE_ONLY: [string, string][] = [
+  ['0', '0'],
+  ['1', '0'],
+  ['2', '0'],
+  ['0', '3'],
+  ['0', '0'],
+  ['0', '0'],
 ];
 
-const SCORES_TRIPLE_TIE: [string, string][] = [
-  ['1', '0'], // nth(0) MEX vs ZAF: MEX gana → MEX+3
-  ['0', '0'], // nth(1) KOR vs CZE: empate → KOR+1, CZE+1
-  ['0', '0'], // nth(2) CZE vs ZAF: empate → CZE+1, ZAF+1
-  ['0', '1'], // nth(3) MEX vs KOR: KOR gana → KOR+3
-  ['1', '0'], // nth(4) ZAF vs KOR: ZAF gana → ZAF+3
-  ['0', '0'], // nth(5) CZE vs MEX: empate → CZE+1, MEX+1
-  // Totales: MEX=4, KOR=4, ZAF=4, CZE=3 → MEX=KOR=ZAF=4 (triple empate)
+// Empate REAL entre 2: MEX=KOR (7 pts, GD +4, GF 5). CZE=3, ZAF=0 separados.
+//   nth0 MEX-ZAF 2-0, nth1 KOR-CZE 2-0, nth2 CZE-ZAF 1-0,
+//   nth3 MEX-KOR 1-1, nth4 ZAF-KOR 0-2, nth5 CZE-MEX 0-2
+const SCORES_REAL_TWO_TIE: [string, string][] = [
+  ['2', '0'],
+  ['2', '0'],
+  ['1', '0'],
+  ['1', '1'],
+  ['0', '2'],
+  ['0', '2'],
 ];
 
+// Empate REAL triple: MEX=KOR=ZAF (6 pts, GD +2, GF 3). CZE=0, último.
+//   nth0 MEX-ZAF 0-1, nth1 KOR-CZE 2-0, nth2 CZE-ZAF 0-2,
+//   nth3 MEX-KOR 1-0, nth4 ZAF-KOR 0-1, nth5 CZE-MEX 0-2
+const SCORES_REAL_TRIPLE_TIE: [string, string][] = [
+  ['0', '1'],
+  ['2', '0'],
+  ['0', '2'],
+  ['1', '0'],
+  ['0', '1'],
+  ['0', '2'],
+];
+
+// Dos bloques REALES: MEX=KOR (7, +4, 5) y CZE=ZAF (1, −4, 1).
+//   nth0 MEX-ZAF 2-0, nth1 KOR-CZE 2-0, nth2 CZE-ZAF 1-1,
+//   nth3 MEX-KOR 1-1, nth4 ZAF-KOR 0-2, nth5 CZE-MEX 0-2
 const SCORES_TWO_BLOCKS: [string, string][] = [
-  ['3', '0'], // nth(0) MEX vs ZAF: MEX gana → MEX+3
-  ['3', '0'], // nth(1) KOR vs CZE: KOR gana → KOR+3
-  ['0', '0'], // nth(2) CZE vs ZAF: empate → CZE+1, ZAF+1
-  ['0', '0'], // nth(3) MEX vs KOR: empate → MEX+1, KOR+1
-  ['0', '3'], // nth(4) ZAF vs KOR: KOR gana → KOR+3
-  ['0', '3'], // nth(5) CZE vs MEX: MEX gana (away) → MEX+3
-  // Totales: MEX=7, KOR=7, CZE=1, ZAF=1 → MEX=KOR (bloque 1), CZE=ZAF (bloque 2)
+  ['2', '0'],
+  ['2', '0'],
+  ['1', '1'],
+  ['1', '1'],
+  ['0', '2'],
+  ['0', '2'],
 ];
 
 // ---------------------------------------------------------------------------
-// T1: Sin marcadores: el sub-componente no aparece
+// T1: Sin marcadores → ni resaltado ni nota
 // ---------------------------------------------------------------------------
-test('desempate T1 – sin marcadores completados, no hay sub-componente de desempate', async ({
+test('desempate T1 – sin marcadores, ningún equipo resaltado ni nota', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-standings-tab')).toBeVisible();
 
-  // Un usuario nuevo sin marcadores no tiene ningún bloque de desempate.
-  await expect(page.locator('[data-testid^="gs-tiebreak-"]')).toHaveCount(0);
+  await expect(
+    page.locator('[data-testid^="gs-order-"] > li[data-tied="true"]'),
+  ).toHaveCount(0);
+  await expect(page.locator('[data-testid^="gs-tie-note-"]')).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------------------
-// T1b: Marcadores que NO generan empate → sub-componente no aparece
+// T1b: Marcadores con puntos distintos → sin resaltado
 // ---------------------------------------------------------------------------
-test('desempate T1b – marcadores sin empate no muestran sub-componente', async ({
+test('desempate T1b – marcadores sin empate no resaltan ningún equipo', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-matches-tab')).toBeVisible();
-
-  // MEX=9, KOR=6, CZE=3, ZAF=0 → todos con puntos distintos.
   await fillGroupA(page, SCORES_NO_TIE);
 
-  // Sin empate a puntos: no aparece ningún bloque de desempate para el grupo A.
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toHaveCount(0);
+  expect(await tiedRows(page, 'A')).toEqual([]);
+  await expect(page.getByTestId('gs-tie-note-A')).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------------------
-// T2: Empate entre 2 equipos → aparece, se reordena, autosave, persiste
+// Tgd: Empate SOLO a puntos roto por diferencia de goles → sin resaltado
+//      (esta es la regresión que arregla ADR 0007)
 // ---------------------------------------------------------------------------
-test('desempate T2 – empate entre 2 equipos: aparece desempate, se reordena, persiste', async ({
+test('desempate Tgd – empate solo a puntos roto por GD no resalta nada', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-matches-tab')).toBeVisible();
 
-  // MEX=ZAF=2, KOR=7, CZE=4 → empate doble entre MEX y ZAF.
-  await fillGroupA(page, SCORES_TWO_TEAM_TIE);
+  // MEX=ZAF=2 puntos pero distinta diferencia de goles → no es empate real.
+  await fillGroupA(page, SCORES_POINTS_TIE_ONLY);
 
-  // El sub-componente de desempate A-0 debe aparecer (calculado en vivo).
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toBeVisible();
+  expect(await tiedRows(page, 'A')).toEqual([]);
+  await expect(page.getByTestId('gs-tie-note-A')).toHaveCount(0);
+});
 
-  // El bloque debe tener exactamente 2 equipos (MEX y ZAF).
-  const tiedTeams = await tiebreakBlockItems(page, 'A', 0);
-  expect(tiedTeams).toHaveLength(2);
-  expect(tiedTeams).toContain('MEX');
-  expect(tiedTeams).toContain('ZAF');
+// ---------------------------------------------------------------------------
+// T2: Empate real entre 2 equipos → resaltado, reorden, autosave, persiste
+// ---------------------------------------------------------------------------
+test('desempate T2 – empate real entre 2 equipos: resalta, se reordena y persiste', async ({
+  browser,
+}) => {
+  const page = await registerAndLand(browser);
 
-  // Bajar el primer equipo del bloque de desempate (intercambia los 2).
-  const tieDownBtn = page
-    .getByTestId('gs-tiebreak-A-0')
-    .locator('[data-testid^="gs-tie-A-0-down-"]')
-    .first();
-  await tieDownBtn.click();
+  await expect(page.getByTestId('group-matches-tab')).toBeVisible();
+  await fillGroupA(page, SCORES_REAL_TWO_TIE);
 
-  // El autosave del tab de standings debe confirmar guardado.
+  // Exactamente MEX y KOR quedan empatados (7 pts, GD +4, GF 5).
+  const tied = await tiedRows(page, 'A');
+  expect(tied.sort()).toEqual(['KOR', 'MEX']);
+  await expect(page.getByTestId('gs-tie-note-A')).toBeVisible();
+
+  // Reordenar dentro de la lista principal: bajar KOR (intercambia con MEX).
+  const orderBefore = await groupOrder(page, 'A');
+  await page.getByTestId('gs-order-A-down-KOR').click();
+
   await expect(page.getByTestId('gs-autosave-status')).toHaveText('Guardado', {
     timeout: 6000,
   });
 
-  // El bloque debe reordenarse: los dos equipos intercambian posiciones.
-  const tiedTeamsAfterSwap = await tiebreakBlockItems(page, 'A', 0);
-  expect(tiedTeamsAfterSwap[0]).toBe(tiedTeams[1]);
-  expect(tiedTeamsAfterSwap[1]).toBe(tiedTeams[0]);
+  const orderAfter = await groupOrder(page, 'A');
+  expect(orderAfter).not.toEqual(orderBefore);
 
-  // Recargar y verificar que el orden del grupo A persiste.
-  const orderBefore = await groupOrder(page, 'A');
+  // Persiste tras recarga.
   await page.reload();
   await expect(page.getByTestId('group-standings-tab')).toBeVisible();
-  const orderAfterReload = await groupOrder(page, 'A');
-  expect(orderAfterReload).toEqual(orderBefore);
+  expect(await groupOrder(page, 'A')).toEqual(orderAfter);
 });
 
 // ---------------------------------------------------------------------------
-// T3: Empate triple → sub-componente con 3 equipos
+// T3: Empate real triple → 3 filas resaltadas
 // ---------------------------------------------------------------------------
-test('desempate T3 – empate triple: el bloque de desempate tiene 3 equipos arrastrables', async ({
+test('desempate T3 – empate real triple: 3 equipos resaltados', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-matches-tab')).toBeVisible();
+  await fillGroupA(page, SCORES_REAL_TRIPLE_TIE);
 
-  // MEX=KOR=ZAF=4, CZE=3 → triple empate entre MEX, KOR y ZAF.
-  await fillGroupA(page, SCORES_TRIPLE_TIE);
-
-  // El bloque de desempate A-0 debe aparecer con 3 equipos empatados.
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toBeVisible();
-  const tiedTeams = await tiebreakBlockItems(page, 'A', 0);
-  expect(tiedTeams).toHaveLength(3);
-  expect(tiedTeams).toContain('MEX');
-  expect(tiedTeams).toContain('KOR');
-  expect(tiedTeams).toContain('ZAF');
+  const tied = await tiedRows(page, 'A');
+  expect(tied.sort()).toEqual(['KOR', 'MEX', 'ZAF']);
+  await expect(page.getByTestId('gs-tie-note-A')).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------
-// T4: Dos bloques de empate en el mismo grupo
+// T4: Dos bloques empatados en el mismo grupo → las 4 filas resaltadas
 // ---------------------------------------------------------------------------
-test('desempate T4 – dos bloques de empate independientes en el mismo grupo', async ({
+test('desempate T4 – dos bloques de empate: las 4 filas del grupo resaltadas', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-matches-tab')).toBeVisible();
-
-  // MEX=KOR=7 y ZAF=CZE=1 → dos bloques independientes.
   await fillGroupA(page, SCORES_TWO_BLOCKS);
 
-  // Deben aparecer dos bloques de desempate para el grupo A.
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toBeVisible();
-  await expect(page.getByTestId('gs-tiebreak-A-1')).toBeVisible();
-
-  // El primer bloque (más puntos, 7 pts) tiene MEX y KOR.
-  const block0 = await tiebreakBlockItems(page, 'A', 0);
-  expect(block0).toHaveLength(2);
-  expect(block0).toContain('MEX');
-  expect(block0).toContain('KOR');
-
-  // El segundo bloque (menos puntos, 1 pt) tiene ZAF y CZE.
-  const block1 = await tiebreakBlockItems(page, 'A', 1);
-  expect(block1).toHaveLength(2);
-  expect(block1).toContain('ZAF');
-  expect(block1).toContain('CZE');
-
-  // Reordenar el primer bloque.
-  const tieDown0 = page
-    .getByTestId('gs-tiebreak-A-0')
-    .locator('[data-testid^="gs-tie-A-0-down-"]')
-    .first();
-  await tieDown0.click();
-  await expect(page.getByTestId('gs-autosave-status')).toHaveText('Guardado', {
-    timeout: 6000,
-  });
-
-  // Reordenar el segundo bloque.
-  const tieDown1 = page
-    .getByTestId('gs-tiebreak-A-1')
-    .locator('[data-testid^="gs-tie-A-1-down-"]')
-    .first();
-  await tieDown1.click();
-  await expect(page.getByTestId('gs-autosave-status')).toHaveText('Guardado', {
-    timeout: 6000,
-  });
+  // MEX=KOR (7) y CZE=ZAF (1): los cuatro quedan en algún bloque empatado.
+  const tied = await tiedRows(page, 'A');
+  expect(tied.sort()).toEqual(['CZE', 'KOR', 'MEX', 'ZAF']);
+  await expect(page.getByTestId('gs-tie-note-A')).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------
-// T5: Cambio de marcador que ROMPE el empate
-//
-// COMPORTAMIENTO REAL DOCUMENTADO (desde el código de grupos-tab.tsx):
-//   - tiedBlocksByGroup se recalcula en VIVO en el cliente cada vez que cambia
-//     el estado de scores (useMemo sobre scores).
-//   - Si el nuevo marcador elimina el empate, el bloque de desempate desaparece
-//     del DOM inmediatamente (sin esperar al autosave).
-//   - El orden del grupo principal (SortableList) MANTIENE su estado local
-//     (el estado no se resetea al desaparecer el bloque de desempate).
-//   - El servidor persiste el último orden guardado antes del cambio de marcador.
+// T5: Cambiar marcador que ROMPE el empate (por GD) → el resaltado desaparece
 // ---------------------------------------------------------------------------
-test('desempate T5 – cambiar marcador que rompe el empate: el sub-componente desaparece', async ({
+test('desempate T5 – romper el empate por GD: el resaltado desaparece', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-matches-tab')).toBeVisible();
+  await fillGroupA(page, SCORES_REAL_TWO_TIE);
+  expect((await tiedRows(page, 'A')).sort()).toEqual(['KOR', 'MEX']);
 
-  // Crear empate doble MEX=ZAF=2 en el grupo A.
-  await fillGroupA(page, SCORES_TWO_TEAM_TIE);
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toBeVisible();
-
-  // Reordenar el desempate (MEX y ZAF intercambian) y guardarlo.
-  const tieDownBtn = page
-    .getByTestId('gs-tiebreak-A-0')
-    .locator('[data-testid^="gs-tie-A-0-down-"]')
-    .first();
-  await tieDownBtn.click();
-  await expect(page.getByTestId('gs-autosave-status')).toHaveText('Guardado', {
-    timeout: 6000,
-  });
-
-  // Capturar el orden del grupo A con desempate aplicado.
-  const orderWithTie = await groupOrder(page, 'A');
-
-  // Romper el empate: cambiar nth(5) (CZE vs MEX) de 0-0 a 1-0 (CZE gana).
-  // Nuevo estado: MEX=1, ZAF=2, KOR=7, CZE=6 → sin empate entre MEX y ZAF.
+  // Romper el empate: nth5 CZE-MEX de 0-2 a 0-1 (MEX baja a GF 4 → MEX≠KOR).
   const section = page
     .locator('[data-testid="group-matches-tab"] section')
     .first();
-  const localInputs = section.locator('[data-testid^="gm-local-"]');
+  const awayInputs = section.locator('[data-testid^="gm-visitante-"]');
+  await awayInputs.nth(5).fill('1');
 
-  await localInputs.nth(5).fill('1');
-
-  // El sub-componente de desempate debe desaparecer (calculado en vivo en cliente).
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toHaveCount(0);
-
-  // El orden del grupo A con-desempate se preserva en el estado local del componente.
-  const orderAfterBreak = await groupOrder(page, 'A');
-  expect(orderAfterBreak).toEqual(orderWithTie);
-
-  // Esperar a que el autosave de marcadores complete:
-  // debounce 800ms + round-trip al servidor. waitForTimeout es la forma más robusta
-  // aquí porque el indicador puede estar en "Guardado" del save anterior y no cambiar
-  // visualmente si el nuevo save se completa muy rápido.
-  await page.waitForTimeout(3000);
-
-  // Recargar: el servidor carga los marcadores actualizados (1-0 en CZE-MEX).
-  await page.reload();
-  await expect(page.getByTestId('group-standings-tab')).toBeVisible();
-  const orderAfterReload = await groupOrder(page, 'A');
-  expect(orderAfterReload).toEqual(orderWithTie);
-
-  // El desempate no reaparece tras recargar (los marcadores guardados no generan empate).
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toHaveCount(0);
+  // El resaltado se recalcula en vivo en cliente y desaparece.
+  expect(await tiedRows(page, 'A')).toEqual([]);
+  await expect(page.getByTestId('gs-tie-note-A')).toHaveCount(0);
 });
 
 // ---------------------------------------------------------------------------
-// T5b: Restituir el marcador QUE VUELVE a empatar → sub-componente reaparece
+// T5b: Restituir el marcador que vuelve a empatar → el resaltado reaparece
 // ---------------------------------------------------------------------------
-test('desempate T5b – restituir empate: el sub-componente reaparece con orden preservado', async ({
+test('desempate T5b – restituir el empate: el resaltado reaparece', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-matches-tab')).toBeVisible();
+  await fillGroupA(page, SCORES_REAL_TWO_TIE);
+  expect((await tiedRows(page, 'A')).sort()).toEqual(['KOR', 'MEX']);
 
-  // Crear empate doble MEX=ZAF=2.
-  await fillGroupA(page, SCORES_TWO_TEAM_TIE);
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toBeVisible();
-
-  // Reordenar el desempate y guardar.
-  const tieDownBtn = page
-    .getByTestId('gs-tiebreak-A-0')
-    .locator('[data-testid^="gs-tie-A-0-down-"]')
-    .first();
-  await tieDownBtn.click();
-  await expect(page.getByTestId('gs-autosave-status')).toHaveText('Guardado', {
-    timeout: 6000,
-  });
-
-  const orderWithTie = await groupOrder(page, 'A');
-
-  // Romper el empate: nth(5) CZE-MEX → 1-0 (CZE gana).
   const section = page
     .locator('[data-testid="group-matches-tab"] section')
     .first();
-  const localInputs = section.locator('[data-testid^="gm-local-"]');
+  const awayInputs = section.locator('[data-testid^="gm-visitante-"]');
 
-  await localInputs.nth(5).fill('1');
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toHaveCount(0);
+  // Romper (0-1) y luego restaurar (0-2) el marcador de CZE-MEX.
+  await awayInputs.nth(5).fill('1');
+  expect(await tiedRows(page, 'A')).toEqual([]);
 
-  // Restaurar el marcador original: nth(5) CZE-MEX → 0-0 (vuelve el empate MEX=ZAF=2).
-  await localInputs.nth(5).fill('0');
-
-  // El desempate debe reaparecer.
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toBeVisible();
-
-  // El orden del grupo A con el desempate previo se ha preservado en el estado local.
-  const orderAfterRestore = await groupOrder(page, 'A');
-  expect(orderAfterRestore).toEqual(orderWithTie);
+  await awayInputs.nth(5).fill('2');
+  expect((await tiedRows(page, 'A')).sort()).toEqual(['KOR', 'MEX']);
+  await expect(page.getByTestId('gs-tie-note-A')).toBeVisible();
 });

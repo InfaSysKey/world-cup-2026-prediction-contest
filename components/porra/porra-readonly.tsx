@@ -1,3 +1,4 @@
+import { TeamLabel } from '@/components/porra/team-label';
 import { Card } from '@/components/ui/card';
 import { GROUP_LETTERS } from '@/lib/constants';
 import type { Phase } from '@/lib/db';
@@ -11,7 +12,10 @@ import type { KnockoutMatchRef } from '@/lib/scoring/resolve-bracket';
 // /mi-porra (porra propia, todo visible) y /usuario/[nickname] (porra de otro,
 // donde las categorías no bloqueadas llegan vacías y se marcan con candado).
 
-export type ReadonlyTeamMap = ReadonlyMap<string, { name: string; flag: string }>;
+export type ReadonlyTeamMap = ReadonlyMap<
+  string,
+  { name: string; flagCode: string }
+>;
 
 export type PorraReadonlySection =
   | 'groupMatches'
@@ -62,12 +66,19 @@ const AWARD_LABELS: ReadonlyArray<{ kind: string; label: string }> = [
   { kind: 'ball_bronze', label: 'Balón de Bronce' },
 ];
 
-function teamLabel(teams: ReadonlyTeamMap, code: string | null): string {
+function teamLabel(
+  teams: ReadonlyTeamMap,
+  code: string | null,
+): React.ReactNode {
   if (!code) {
     return '—';
   }
   const team = teams.get(code);
-  return team ? `${team.flag} ${team.name}` : code;
+  return team ? (
+    <TeamLabel flagCode={team.flagCode} name={team.name} />
+  ) : (
+    code
+  );
 }
 
 function Section({
@@ -151,14 +162,14 @@ export function PorraReadonly({
                   const score = scoreByMatch.get(m.id);
                   return (
                     <li key={m.id} className="flex items-center justify-between gap-2">
-                      <span className="truncate">
-                        {m.homeFlag} {m.homeName}
+                      <span className="min-w-0">
+                        <TeamLabel flagCode={m.homeFlagCode} name={m.homeName} />
                       </span>
                       <span className="shrink-0 tabular-nums font-medium">
                         {score ? `${score.local} - ${score.visitante}` : '— · —'}
                       </span>
-                      <span className="truncate text-right">
-                        {m.awayName} {m.awayFlag}
+                      <span className="flex min-w-0 justify-end">
+                        <TeamLabel flagCode={m.awayFlagCode} name={m.awayName} />
                       </span>
                     </li>
                   );

@@ -311,9 +311,12 @@ Cada vez que el motor recalcula tras un cambio del admin, deja huella.
 | `reason` | `text` | no | — | Mensaje libre del admin |
 | `affected_categories` | `text[]` | no | — | Qué categorías se recalcularon |
 | `users_affected` | `integer` | no | — | Cuántas filas de `scores` cambiaron |
+| `positions` | `jsonb` | no | `'{}'` | Snapshot `{ "<user_id>": rank }` del ranking **tras** este recálculo |
 | `created_at` | `timestamptz` | no | `now()` | |
 
 **Índices**: `triggered_by` (historial de recálculos filtrado por admin en la vista de auditoría).
+
+**`positions`** es la base de los deltas ▲/▼ del ranking (§6.1): el delta de un jugador es su posición en el snapshot del recálculo **anterior** menos su posición actual (positivo = subió). Hasta que no hay ≥2 recálculos no hay delta que mostrar.
 
 ---
 

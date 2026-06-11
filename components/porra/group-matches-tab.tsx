@@ -4,6 +4,8 @@ import { useCallback, useState } from 'react';
 
 import type { GroupCatalog } from '@/app/(porra)/porra/load-group-matches';
 import { saveGroupMatchPredictions } from '@/app/(porra)/porra/actions';
+import { Flag } from '@/components/porra/flag';
+import { MatchDuel } from '@/components/porra/match-duel';
 import { MAX_GOLES } from '@/lib/constants';
 import type { PredictionGroupMatch } from '@/lib/db';
 import { useAutoSave } from '@/lib/hooks/use-auto-save';
@@ -18,7 +20,7 @@ type GroupMatchesTabProps = {
   initial: PredictionGroupMatch[];
   locked: boolean;
   // El contenedor de Grupos escucha los marcadores en vivo para detectar
-  // empates a puntos y alimentar el desempato del orden de grupo.
+  // empates reales (puntos → GD → GF) y alimentar el desempate del orden de grupo.
   onValuesChange?: (values: ScoreMap) => void;
 };
 
@@ -57,9 +59,6 @@ function toEntries(map: ScoreMap): GroupMatchPredictionInput[] {
   return out;
 }
 
-const inputClass =
-  'h-11 w-14 rounded-md border border-slot bg-surface px-2 text-center text-ink tabular-nums disabled:opacity-50';
-
 export function GroupMatchesTab({
   catalog,
   initial,
@@ -95,61 +94,45 @@ export function GroupMatchesTab({
       </div>
 
       {catalog.map((group) => (
-        <section key={group.groupLetter} className="flex flex-col gap-2">
-          <h3 className="text-sm font-semibold text-ink">
-            Grupo {group.groupLetter}
-          </h3>
-          <ul className="flex flex-col gap-1">
-            {group.matches.map((m) => {
+        <section key={group.groupLetter} className="flex flex-col gap-3">
+          <h3 className="text-eyebrow">Grupo {group.groupLetter}</h3>
+          <div className="flex flex-col gap-3">
+            {group.matches.map((m, index) => {
               const placed =
                 (values[m.id]?.local ?? '') !== '' &&
                 (values[m.id]?.visitante ?? '') !== '';
               return (
-              <li
-                key={m.id}
-                data-testid={`gm-row-${m.id}`}
-                data-placed={placed}
-                className={`flex flex-wrap items-center gap-2 rounded-[14px] border px-2 py-1.5 text-sm transition-colors ${
-                  placed
-                    ? 'border-slot bg-surface'
-                    : 'border-dashed border-slot bg-bg'
-                }`}
-              >
-                <span className="w-44 truncate text-right text-ink">
-                  {m.homeFlag} {m.homeName}
-                </span>
-                <input
-                  type="number"
-                  min={0}
-                  max={MAX_GOLES}
-                  inputMode="numeric"
-                  disabled={locked}
-                  data-testid={`gm-local-${m.id}`}
-                  aria-label={`Goles ${m.homeName}`}
-                  value={values[m.id]?.local ?? ''}
-                  onChange={(e) => update(m.id, 'local', e.target.value)}
-                  className={inputClass}
+                <MatchDuel
+                  key={m.id}
+                  data-testid={`gm-row-${m.id}`}
+                  number={`CROMO ${String(index + 1).padStart(2, '0')}`}
+                  placed={placed}
+                  home={{
+                    name: m.homeName,
+                    flag: <Flag code={m.homeFlagCode} name={m.homeName} size="lg" />,
+                  }}
+                  away={{
+                    name: m.awayName,
+                    flag: <Flag code={m.awayFlagCode} name={m.awayName} size="lg" />,
+                  }}
+                  homeInput={{
+                    'data-testid': `gm-local-${m.id}`,
+                    'aria-label': `Goles ${m.homeName}`,
+                    value: values[m.id]?.local ?? '',
+                    disabled: locked,
+                    onChange: (e) => update(m.id, 'local', e.target.value),
+                  }}
+                  awayInput={{
+                    'data-testid': `gm-visitante-${m.id}`,
+                    'aria-label': `Goles ${m.awayName}`,
+                    value: values[m.id]?.visitante ?? '',
+                    disabled: locked,
+                    onChange: (e) => update(m.id, 'visitante', e.target.value),
+                  }}
                 />
-                <span className="text-ink-muted">–</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={MAX_GOLES}
-                  inputMode="numeric"
-                  disabled={locked}
-                  data-testid={`gm-visitante-${m.id}`}
-                  aria-label={`Goles ${m.awayName}`}
-                  value={values[m.id]?.visitante ?? ''}
-                  onChange={(e) => update(m.id, 'visitante', e.target.value)}
-                  className={inputClass}
-                />
-                <span className="w-44 truncate text-ink">
-                  {m.awayName} {m.awayFlag}
-                </span>
-              </li>
               );
             })}
-          </ul>
+          </div>
         </section>
       ))}
     </div>
@@ -167,7 +150,7 @@ function AutoSaveStatus({
 }) {
   if (locked) {
     return (
-      <span className="text-xs font-medium text-amber-600 dark:text-amber-300">
+      <span className="text-xs font-medium text-amber-700 dark:text-amber-300">
         BLOQUEADA
       </span>
     );

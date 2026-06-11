@@ -8,6 +8,7 @@ import type {
   GroupTeamsCatalog,
 } from '@/app/(porra)/porra/load-group-teams';
 import { SortableList, type SortableItem } from '@/components/porra/sortable-list';
+import { TeamLabel } from '@/components/porra/team-label';
 import type { PredictionGroupStanding } from '@/lib/db';
 import { useAutoSave } from '@/lib/hooks/use-auto-save';
 
@@ -19,9 +20,10 @@ type StandingEntry = { groupLetter: string; position: number; teamCode: string }
 type GroupStandingsTabProps = {
   catalog: GroupTeamsCatalog[];
   initial: PredictionGroupStanding[];
-  // Bloques de equipos empatados a puntos por grupo, calculados en vivo por el
-  // contenedor a partir de los marcadores predichos. Solo se rellenan cuando el
-  // grupo está completo; un grupo sin empate o incompleto trae [].
+  // Bloques de equipos empatados en puntos, diferencia de goles y goles a favor
+  // por grupo, calculados en vivo por el contenedor a partir de los marcadores
+  // predichos. Solo se rellenan cuando el grupo está completo; un grupo sin
+  // empate real o incompleto trae [].
   tiedBlocksByGroup: Record<string, string[][]>;
   locked: boolean;
 };
@@ -55,25 +57,6 @@ function buildInitialOrders(
     }
   }
   return { orders, answered };
-}
-
-// Reordena, dentro del orden completo, solo los equipos de un bloque empatado,
-// respetando las posiciones que ese bloque ya ocupa (los demás no se mueven).
-function applyTiebreakOrder(
-  currentOrder: string[],
-  newBlockOrder: string[],
-): string[] {
-  const blockSet = new Set(newBlockOrder);
-  const slots = currentOrder
-    .map((code, idx) => ({ code, idx }))
-    .filter(({ code }) => blockSet.has(code))
-    .map(({ idx }) => idx);
-
-  const result = [...currentOrder];
-  slots.forEach((slot, k) => {
-    result[slot] = newBlockOrder[k];
-  });
-  return result;
 }
 
 function toBatch(
@@ -135,17 +118,16 @@ export function GroupStandingsTab({
     commit({ ...orders, [group]: orderedIds }, group);
   }
 
-  function handleTiebreak(group: string, newBlockOrder: string[]) {
-    const next = applyTiebreakOrder(orders[group] ?? [], newBlockOrder);
-    commit({ ...orders, [group]: next }, group);
-  }
-
   function itemsFor(codes: string[]): SortableItem[] {
     return codes.map((code) => {
       const team = teamLabel.get(code);
       return {
         id: code,
-        content: team ? `${team.flag} ${team.name}` : code,
+        content: team ? (
+          <TeamLabel flagCode={team.flagCode} name={team.name} />
+        ) : (
+          code
+        ),
         label: team?.name ?? code,
       };
     });
@@ -163,6 +145,9 @@ export function GroupStandingsTab({
       {catalog.map((group) => {
         const order = orders[group.groupLetter] ?? [];
         const tiedBlocks = tiedBlocksByGroup[group.groupLetter] ?? [];
+        // Equipos realmente empatados (puntos → GD → GF). El orden que el usuario
+        // les dé en la lista principal es su desempate; no hay segundo control.
+        const tiedCodes = new Set(tiedBlocks.flat());
         return (
           <section
             key={group.groupLetter}
@@ -177,35 +162,20 @@ export function GroupStandingsTab({
               items={itemsFor(order)}
               onReorder={(ids) => handleReorder(group.groupLetter, ids)}
               disabled={locked}
+              highlightedIds={tiedCodes}
               testIdPrefix={`gs-order-${group.groupLetter}`}
               ariaLabel={`Orden del grupo ${group.groupLetter}`}
             />
 
-            {tiedBlocks.map((block, i) => (
-              <div
-                key={`${group.groupLetter}-tie-${i}`}
-                data-testid={`gs-tiebreak-${group.groupLetter}-${i}`}
-                className="rounded border border-amber-300 bg-amber-50 p-2"
+            {tiedCodes.size > 0 ? (
+              <p
+                data-testid={`gs-tie-note-${group.groupLetter}`}
+                className="rounded border border-amber-300 bg-amber-50 px-2 py-1.5 text-xs text-amber-800"
               >
-                <p className="mb-1 text-xs font-medium text-amber-800">
-                  Desempate — tus marcadores empatan a puntos a estos equipos.
-                  Ordénalos según tu preferencia.
-                </p>
-                <SortableList
-                  items={itemsFor(
-                    // Mantén los equipos del bloque en su orden actual del grupo.
-                    order.filter((code) => block.includes(code)),
-                  )}
-                  onReorder={(ids) =>
-                    handleTiebreak(group.groupLetter, ids)
-                  }
-                  disabled={locked}
-                  showPositions={false}
-                  testIdPrefix={`gs-tie-${group.groupLetter}-${i}`}
-                  ariaLabel={`Desempate del grupo ${group.groupLetter}`}
-                />
-              </div>
-            ))}
+                Tus marcadores dejan a estos equipos empatados en puntos,
+                diferencia de goles y goles a favor. Ordénalos tú.
+              </p>
+            ) : null}
           </section>
         );
       })}

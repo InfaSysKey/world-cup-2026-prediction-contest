@@ -4,14 +4,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-/* Ángulo animable del foil (§4). inherits:true para que los pseudo-elementos
-   del cromo hereden el valor mientras la animación lo recorre. */
-@property --cromo-foil-angle {
-  syntax: "<angle>";
-  inherits: true;
-  initial-value: 210deg;
-}
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -91,6 +83,23 @@
   --ink: #1a1c2b;
   --ink-muted: #6b6e7d;
 
+  /* Sombras en capas — la profundidad del cromo (mockup cromos-v2). */
+  --shadow:
+    0 1px 2px rgba(24, 26, 40, 0.06), 0 8px 22px -8px rgba(24, 26, 40, 0.16);
+  --shadow-hi:
+    0 3px 6px rgba(24, 26, 40, 0.1), 0 22px 48px -14px rgba(24, 26, 40, 0.34);
+
+  /* Metálicos del podio (§10.5): plata (#2) y bronce (#3). */
+  --silver: #c7cbd4;
+  --bronze: #cc8b5c;
+
+  /* Textura de papel del álbum (§7): punteado muy sutil del mockup. */
+  --paper: radial-gradient(
+    circle at 1px 1px,
+    rgba(24, 26, 40, 0.035) 1px,
+    transparent 0
+  );
+
   /* Foil holográfico — elemento firma (§4). Mismo en ambos modos. */
   --foil: conic-gradient(
     from 210deg at 50% 50%,
@@ -155,6 +164,22 @@
   --slot: #2a2c38;
   --ink: #f2f2ec;
   --ink-muted: #9a9dab;
+
+  /* Sombras más profundas y opacas bajo la lámpara de noche. */
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.45), 0 10px 26px -10px rgba(0, 0, 0, 0.6);
+  --shadow-hi:
+    0 3px 8px rgba(0, 0, 0, 0.55), 0 24px 50px -14px rgba(0, 0, 0, 0.72);
+
+  /* Metálicos del podio, subidos de luminancia para el modo oscuro. */
+  --silver: #a7acbd;
+  --bronze: #d89a6a;
+
+  /* Punteado de papel más tenue sobre la tinta nocturna. */
+  --paper: radial-gradient(
+    circle at 1px 1px,
+    rgba(255, 255, 255, 0.03) 1px,
+    transparent 0
+  );
 
   --background: var(--bg);
   --foreground: var(--ink);
@@ -234,60 +259,234 @@
   }
 
   /* ---------------------------------------------------------------------------
-     Foil holográfico (§4) — elemento firma, reservado al #1 y al campeón.
-     ::before = borde de 2px con el gradiente cónico (mask para vaciar el centro).
-     ::after  = sheen tenue sobre la cara del cromo.
-     El ángulo gira en loop lento (§6 "desplazamiento lento"); acelera en hover.
-     prefers-reduced-motion lo deja estático vía la regla global de @layer base.
+     Foil holográfico real (§4, 10.5) — elemento firma, reservado al #1. Estructura
+     wrapper(.foil-card) > .foil-holo (cónico girando + textura de líneas) +
+     .foil-inner (la cara, con brillo radial que sigue a --mx/--my). El tilt 3D y
+     --mx/--my los escribe <FoilCromo> por ref (sin re-render → sin tirones).
+     reduce-motion deja el holo estático (sin giro ni tilt) pero sigue siendo shiny.
      ------------------------------------------------------------------------- */
-  .cromo-foil {
+  .foil-card {
     position: relative;
-    isolation: isolate;
-    animation: cromo-foil-spin 14s linear infinite;
+    border-radius: 21px;
+    padding: 2.5px;
+    box-shadow: var(--shadow-hi);
+    transform-style: preserve-3d;
+    transition: transform 0.25s ease;
+  }
+  .foil-holo {
+    position: absolute;
+    inset: 0;
+    border-radius: 21px;
+    overflow: hidden;
+  }
+  .foil-holo::before {
+    content: "";
+    position: absolute;
+    inset: -30%;
+    background: conic-gradient(
+      from 0deg,
+      #e8b445,
+      #ff5a47,
+      #b45cff,
+      #2347e8,
+      #27c29a,
+      #e8b445
+    );
+    animation: foil-spin 7s linear infinite;
+    opacity: 0.95;
+  }
+  .foil-holo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      115deg,
+      transparent 0 6px,
+      rgba(255, 255, 255, 0.22) 6px 8px
+    );
+    mix-blend-mode: overlay;
+  }
+  .foil-inner {
+    position: relative;
+    z-index: 1;
+    border-radius: 18.5px;
+    background: var(--surface);
+    padding: 16px 18px;
+  }
+  .foil-inner::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 18.5px;
+    pointer-events: none;
+    background: radial-gradient(
+      circle at var(--mx, 50%) var(--my, 40%),
+      rgba(255, 255, 255, 0.55),
+      transparent 45%
+    );
+  }
+  .foil-crown {
+    position: absolute;
+    top: -9px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    font-size: 15px;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.3));
+  }
+  @keyframes foil-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .foil-card {
+      transition: none;
+    }
+    .foil-holo::before {
+      animation: none;
+    }
   }
 
-  .cromo-foil::before,
-  .cromo-foil::after {
+  /* ---------------------------------------------------------------------------
+     Material del cromo (§5, mockup cromos-v2). La cara de la carta: superficie
+     elevada con sombra en capas, gloss superior y un destello (gleam) que cruza
+     en hover. Lo usa la variante normal de <Cromo>; el hueco vacío no.
+     gloss/gleam van como spans hijos. Hover solo en dispositivos con hover real;
+     prefers-reduced-motion lo congela (regla global de @layer base).
+     ------------------------------------------------------------------------- */
+  .cromo-card {
+    position: relative;
+    isolation: isolate;
+    border-radius: 18px;
+    background: var(--surface);
+    border: 1px solid color-mix(in srgb, var(--ink) 6%, transparent);
+    box-shadow: var(--shadow);
+    /* El top deja sitio a la pestaña de número (mockup). Sobrescribible con
+       utilidades p-* desde el consumidor (las utilities ganan a components). */
+    padding: 18px 16px 16px;
+    overflow: hidden;
+    transition:
+      transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.2s;
+  }
+
+  /* Tintes metálicos sutiles para el podio (§10.5): #2 plata, #3 bronce. NO
+     holográfico (el shiny se reserva al #1). El tinte va a z-index -1 para no
+     lavar el contenido. */
+  .cromo-silver::before,
+  .cromo-bronze::before {
     content: "";
     position: absolute;
     inset: 0;
     z-index: -1;
     border-radius: inherit;
-    background: conic-gradient(
-      from var(--cromo-foil-angle) at 50% 50%,
-      #e8b445,
-      #ff5a47,
-      #2347e8,
-      #27c29a,
-      #e8b445
+    pointer-events: none;
+  }
+  .cromo-silver::before {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--silver) 45%, transparent),
+      transparent 55%
+    );
+  }
+  .cromo-bronze::before {
+    background: linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--bronze) 38%, transparent),
+      transparent 55%
     );
   }
 
-  /* Borde: deja solo el anillo de 2px recortando el relleno con mask */
-  .cromo-foil::before {
-    padding: 2px;
-    -webkit-mask:
-      linear-gradient(#000 0 0) content-box,
-      linear-gradient(#000 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
+  /* Gloss: domo de luz en la mitad superior de la carta. */
+  .cromo-gloss {
+    position: absolute;
+    inset: 1px 1px auto 1px;
+    height: 44%;
+    pointer-events: none;
+    border-radius: 17px 17px 45% 45%;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), transparent);
+  }
+  .dark .cromo-gloss {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent);
   }
 
-  /* Sheen: gradiente a baja opacidad sobre la superficie */
-  .cromo-foil::after {
-    opacity: 0.12;
+  /* Gleam: franja de luz que cruza la carta al pasar el puntero. */
+  .cromo-gleam {
+    position: absolute;
+    top: 0;
+    left: -60%;
+    width: 50%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0.7;
+    background: linear-gradient(
+      105deg,
+      transparent,
+      rgba(255, 255, 255, 0.45),
+      transparent
+    );
+    transition: left 0.5s ease;
+  }
+  .dark .cromo-gleam {
+    background: linear-gradient(
+      105deg,
+      transparent,
+      rgba(255, 255, 255, 0.12),
+      transparent
+    );
+  }
+
+  /* Pestañita con el número de cromo (esquina superior izquierda). */
+  .cromo-num {
+    position: absolute;
+    top: 0;
+    left: 14px;
+    z-index: 1;
+    padding: 3px 8px 4px;
+    border-radius: 0 0 8px 8px;
+    font-size: 11px;
+    color: var(--ink-muted);
+    background: color-mix(in srgb, var(--ink) 6%, transparent);
+  }
+
+  /* Estado del cromo (esquina superior derecha), p. ej. "✓ colocado". */
+  .cromo-state {
+    position: absolute;
+    top: 11px;
+    right: 14px;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--cromo-mint);
   }
 
   @media (hover: hover) {
-    .cromo-foil:hover {
-      animation-duration: 6s;
+    .cromo-card:hover {
+      transform: translateY(-3px);
+      box-shadow: var(--shadow-hi);
+    }
+    .cromo-card:hover .cromo-gleam {
+      left: 120%;
     }
   }
 
-  @keyframes cromo-foil-spin {
-    to {
-      --cromo-foil-angle: 570deg;
+  /* Settle al colocar un cromo (§6): la carta hace scale 0.96→1 una sola vez.
+     MatchDuel añade la clase al pasar de hueco a colocado; reduce-motion la
+     desactiva (guard en el componente + regla global de @layer base). */
+  @keyframes cromo-settle {
+    from {
+      transform: scale(0.96);
     }
+    to {
+      transform: scale(1);
+    }
+  }
+  .cromo-settle {
+    animation: cromo-settle 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
   @media (min-width: 768px) {
@@ -309,6 +508,8 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-image: var(--paper);
+    background-size: 23px 23px;
     font-size: 16px;
   }
   html {

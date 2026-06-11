@@ -6,10 +6,12 @@
 // podio. Si una categoría futura necesita búsqueda más rica, se sustituye aquí
 // sin tocar a los consumidores.
 
+// Las opciones de un <select> nativo solo pueden llevar texto (no imágenes), así
+// que aquí va solo el nombre; la bandera se muestra allá donde el equipo se pinta
+// visualmente (cromos, listas, calendario).
 export type TeamOption = {
   code: string;
   name: string;
-  flag: string;
 };
 
 type TeamSelectProps = {
@@ -43,7 +45,7 @@ export function TeamSelect({
       <option value="">{placeholder}</option>
       {options.map((team) => (
         <option key={team.code} value={team.code}>
-          {team.flag} {team.name}
+          {team.name}
         </option>
       ))}
     </select>

@@ -398,6 +398,9 @@ export const scoreRecalculations = pgTable(
     reason: text('reason').notNull(),
     affectedCategories: text('affected_categories').array().notNull(),
     usersAffected: integer('users_affected').notNull(),
+    // Snapshot { userId: rank } del ranking tras este recálculo: base de los
+    // deltas ▲/▼ (data-model.md §5.5/§6.1).
+    positions: jsonb('positions').$type<Record<string, number>>().notNull().default({}),
     createdAt,
   },
   (t) => [index('idx_score_recalculations_triggered_by').on(t.triggeredBy)],

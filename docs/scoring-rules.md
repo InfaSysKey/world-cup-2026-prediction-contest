@@ -31,9 +31,9 @@ Por cada uno de los 12 grupos, el jugador predice el **orden final** de los 4 eq
 
 ### 2.3 Desempates de grupo (hasta 6 por grupo)
 
-Si la predicción de fase de grupos genera empates a puntos entre equipos del mismo grupo, el jugador define manualmente el orden de desempate. El Excel permite hasta 6 desempates por grupo (Empate1L/V, Empate2L/V… Empate6L/V).
+Si la predicción de fase de grupos deja a dos o más equipos del mismo grupo **empatados según los criterios de clasificación** (puntos → diferencia de goles → goles a favor), el jugador define manualmente el orden de desempate. El Excel permite hasta 6 desempates por grupo (Empate1L/V, Empate2L/V… Empate6L/V).
 
-> **En la app**: este paso se resuelve en el propio formulario de orden de grupo. Si el motor detecta empate matemático según los marcadores predichos, el formulario obliga al jugador a arrastrar los equipos empatados en el orden que él decida.
+> **En la app**: este paso se resuelve en el propio formulario de orden de grupo. El motor detecta el empate **solo cuando el grupo está completo** (los 6 marcadores rellenados) y **solo entre equipos iguales en puntos, diferencia de goles y goles a favor**; si la diferencia de goles o los goles a favor ya los separan, no hay nada que desempatar. Cuando sí hay empate, el formulario resalta esos equipos dentro de la lista de orden del grupo y el jugador decide su orden relativo ahí mismo (no hay un segundo control). Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.
 
 ### 2.4 Mejores terceros (ranking de 8)
 
@@ -260,9 +260,10 @@ El motor (`scoreEngine.calculateUserScore(userId)`) debe:
 
 ## 10. Versionado de las reglas
 
-Este documento es **v1.1**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v1.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
+Este documento es **v1.2**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v1.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
 
 ### Changelog
 
+- **v1.2** (2026-06-10) — §2.3: el desempate del orden de grupo se detecta con la cadena de clasificación completa (**puntos → diferencia de goles → goles a favor**), no solo por puntos, y únicamente cuando el grupo está completo. No cambia ningún punto otorgado por el motor; solo afecta a qué sub-órdenes pide el formulario al jugador. Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.
 - **v1.1** (2026-06-09) — §3.1: se corrige el ejemplo de la fila `one_goal`, que era incoherente con el de la fila `result` (ambos tenían el mismo outcome 1X2). Se fija la regla de marcadores de grupos como **basada en outcome (1X2)**: 5 exacto / 3 acierto de 1X2 / 1 acierto de los goles de un equipo fallando el 1X2 / 0 resto. Ver `docs/decisions/0006-puntuacion-grupos-basada-en-outcome.md`.
 - **v1.0** — versión inicial.

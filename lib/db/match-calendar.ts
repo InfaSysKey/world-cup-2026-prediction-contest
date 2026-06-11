@@ -15,6 +15,10 @@ import { scoreKnockoutMatch, type KnockoutPhase } from '@/lib/scoring/knockout';
 // puntos que saqué en cada uno. Lee BD y reutiliza las funciones PURAS de scoring
 // (group-matches, knockout) para los puntos por partido; no recalcula la tabla.
 
+// Equipo de un lado del partido: nombre + código de bandera. flagCode null cuando
+// el lado aún no está resuelto (slot simbólico, p. ej. "Ganador del cruce 49").
+export type TeamRef = { name: string; flagCode: string | null };
+
 export type CalendarMatch = {
   id: number;
   phase: Phase;
@@ -22,8 +26,8 @@ export type CalendarMatch = {
   groupLetter: string | null;
   scheduledAt: Date;
   status: string;
-  home: string;
-  away: string;
+  home: TeamRef;
+  away: TeamRef;
   // Resultado oficial: "2 - 1" en grupos, nombre del ganador en eliminatorias.
   officialResult: string | null;
   // Mi predicción, en el mismo formato que officialResult.
@@ -36,15 +40,24 @@ function teamRef(
   teams: ReadonlyMap<string, TeamInfo>,
   teamCode: string | null,
   slotRef: string | null,
-): string {
+): TeamRef {
   if (teamCode) {
     const team = teams.get(teamCode);
     if (team) {
-      return `${team.flag} ${team.name}`;
+      return { name: team.name, flagCode: team.flagCode };
     }
-    return teamCode;
+    return { name: teamCode, flagCode: null };
   }
-  return slotRef ?? '—';
+  return { name: slotRef ?? '—', flagCode: null };
+}
+
+// Solo el nombre (sin bandera), para los displays de ganador en eliminatorias y
+// "mi predicción": ahí va texto plano, no la etiqueta con imagen.
+function teamName(
+  teams: ReadonlyMap<string, TeamInfo>,
+  teamCode: string,
+): string {
+  return teams.get(teamCode)?.name ?? teamCode;
 }
 
 function isKnockoutPhase(phase: Phase): phase is KnockoutPhase {
@@ -101,9 +114,9 @@ export async function loadMatchCalendar(
 
     if (isKnockoutPhase(m.phase)) {
       const pick = koByMatch.get(m.id) ?? null;
-      const myPrediction = pick ? teamRef(teams, pick, null) : null;
+      const myPrediction = pick ? teamName(teams, pick) : null;
       const officialResult = m.realWinnerTeamCode
-        ? teamRef(teams, m.realWinnerTeamCode, null)
+        ? teamName(teams, m.realWinnerTeamCode)
         : null;
       const points =
         m.realWinnerTeamCode !== null

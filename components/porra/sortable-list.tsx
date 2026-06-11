@@ -22,6 +22,10 @@ type SortableListProps = {
   showPositions?: boolean;
   testIdPrefix?: string;
   ariaLabel?: string;
+  // Ids resaltados (p. ej. equipos empatados a desempatar). Reciben estilo ámbar
+  // y data-tied="true" para que el orden que el usuario les dé aquí sea su
+  // desempate, sin necesidad de un segundo control.
+  highlightedIds?: ReadonlySet<string>;
 };
 
 function move<T>(arr: T[], from: number, to: number): T[] {
@@ -41,6 +45,7 @@ export function SortableList({
   showPositions = true,
   testIdPrefix = 'sortable',
   ariaLabel,
+  highlightedIds,
 }: SortableListProps) {
   const [dragIndex, setDragIndex] = useState<number | null>(null);
 
@@ -57,10 +62,18 @@ export function SortableList({
       data-testid={testIdPrefix}
       className="flex flex-col gap-1"
     >
-      {items.map((item, index) => (
+      {items.map((item, index) => {
+        const highlighted = highlightedIds?.has(item.id) ?? false;
+        const tone = disabled
+          ? 'border-zinc-200 bg-zinc-50 text-zinc-400'
+          : highlighted
+            ? 'border-amber-300 bg-amber-50 text-amber-900 cursor-grab ring-1 ring-amber-300'
+            : 'border-zinc-300 bg-white cursor-grab';
+        return (
         <li
           key={item.id}
           data-testid={`${testIdPrefix}-item-${item.id}`}
+          data-tied={highlighted ? 'true' : undefined}
           draggable={!disabled}
           aria-roledescription="elemento ordenable"
           onDragStart={() => setDragIndex(index)}
@@ -79,11 +92,7 @@ export function SortableList({
             reorder(dragIndex, index);
             setDragIndex(null);
           }}
-          className={`flex items-center gap-2 rounded border px-2 py-1.5 text-sm ${
-            disabled
-              ? 'border-zinc-200 bg-zinc-50 text-zinc-400'
-              : 'border-zinc-300 bg-white cursor-grab'
-          } ${dragIndex === index ? 'opacity-50' : ''}`}
+          className={`flex items-center gap-2 rounded border px-2 py-1.5 text-sm ${tone} ${dragIndex === index ? 'opacity-50' : ''}`}
         >
           {showPositions ? (
             <span className="w-5 shrink-0 text-right font-semibold tabular-nums text-zinc-500">
@@ -117,7 +126,8 @@ export function SortableList({
             </button>
           </span>
         </li>
-      ))}
+        );
+      })}
     </ol>
   );
 }

@@ -5,7 +5,7 @@
  * Casos:
  *   1. Reordenar un grupo persiste tras recarga.
  *   2. Reordenar dispara el autosave y muestra "Guardado".
- *   3. Marcadores que empatan a puntos hacen aparecer el sub-componente Desempate.
+ *   3. Marcadores con empate real resaltan los equipos en la lista de orden.
  *   (El estado bloqueado se cubre en porra-grupos-locked.spec.ts, project=locked.)
  */
 import type { Page } from '@playwright/test';
@@ -75,20 +75,22 @@ test('orden de grupo – reordenar dispara autosave y muestra "Guardado"', async
 });
 
 // ---------------------------------------------------------------------------
-// Test 3: Marcadores empatados muestran el sub-componente Desempate
+// Test 3: Marcadores empatados resaltan los equipos en la lista de orden
 // ---------------------------------------------------------------------------
-test('orden de grupo – empate a puntos en el grupo A muestra el Desempate', async ({
+test('orden de grupo – grupo A completo a 0-0 resalta los 4 equipos empatados', async ({
   browser,
 }) => {
   const page = await registerAndLand(browser);
 
   await expect(page.getByTestId('group-matches-tab')).toBeVisible();
 
-  // Aún no hay empate calculable (grupo incompleto): no hay desempate.
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toHaveCount(0);
+  // Grupo incompleto: ningún equipo resaltado todavía.
+  await expect(
+    page.locator('[data-testid="gs-order-A"] > li[data-tied="true"]'),
+  ).toHaveCount(0);
 
-  // Rellenar los 6 partidos del grupo A a 0-0: todos empatan, los 4 equipos
-  // quedan a los mismos puntos → un único bloque de desempate con los 4.
+  // Rellenar los 6 partidos del grupo A a 0-0: los 4 equipos quedan iguales en
+  // puntos, diferencia de goles y goles a favor → empate real cuádruple.
   const groupASection = page
     .locator('[data-testid="group-matches-tab"] section')
     .first();
@@ -102,6 +104,10 @@ test('orden de grupo – empate a puntos en el grupo A muestra el Desempate', as
     await awayInputs.nth(i).fill('0');
   }
 
-  // El desempate se calcula en vivo en cliente: aparece sin esperar al guardado.
-  await expect(page.getByTestId('gs-tiebreak-A-0')).toBeVisible();
+  // El resaltado se calcula en vivo en cliente: las 4 filas del grupo A quedan
+  // marcadas y aparece la nota de desempate, sin esperar al guardado.
+  await expect(
+    page.locator('[data-testid="gs-order-A"] > li[data-tied="true"]'),
+  ).toHaveCount(4);
+  await expect(page.getByTestId('gs-tie-note-A')).toBeVisible();
 });

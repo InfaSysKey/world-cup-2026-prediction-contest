@@ -45,9 +45,10 @@ function parseCell(raw: string | undefined): number | null {
 }
 
 // El contenedor del tab "Grupos" sube el estado de los marcadores para poder
-// detectar en vivo los empates a puntos de cada grupo y alimentar el desempate
-// del orden de grupo (scoring-rules.md §2.3). Mientras un grupo no tenga sus 6
-// marcadores completos, no se ofrece desempate (los puntos serían parciales).
+// detectar en vivo los empates reales de cada grupo (puntos → diferencia de
+// goles → goles a favor) y alimentar el desempate del orden de grupo
+// (scoring-rules.md §2.3 / ADR 0007). Mientras un grupo no tenga sus 6
+// marcadores completos, no se ofrece desempate (la tabla sería parcial).
 export function GruposTab({
   matchesCatalog,
   teamsCatalog,

@@ -10,7 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { getCurrentUser } from '@/lib/auth/current-user';
-import { loadRanking } from '@/lib/db/ranking';
+import { loadPreviousPositions, loadRanking } from '@/lib/db/ranking';
 import type { ScoreCategory } from '@/lib/db';
 import { rankPlayers } from '@/lib/scoring/ranking';
 
@@ -30,13 +30,27 @@ const CATEGORY_COLUMNS: ReadonlyArray<{
   { category: 'penalties', label: 'Pen', full: 'Penalizaciones' },
 ];
 
+// Posiciones ganadas (positivo) o perdidas (negativo) desde el recálculo previo.
+// null si no hay snapshot anterior o el jugador no estaba en él (recién entrado).
+function rankDelta(
+  previous: Record<string, number> | null,
+  userId: number,
+  rank: number,
+): number | null {
+  const before = previous?.[String(userId)];
+  return before === undefined ? null : before - rank;
+}
+
 export default async function ClasificacionPage() {
   const user = await getCurrentUser();
   if (!user) {
     redirect('/login');
   }
 
-  const rows = await loadRanking();
+  const [rows, previousPositions] = await Promise.all([
+    loadRanking(),
+    loadPreviousPositions(),
+  ]);
   const ranked = rankPlayers(rows.map((r) => r.player));
   const pointsByUser = new Map(
     rows.map((r) => [r.player.userId, r.categoryPoints]),
@@ -49,6 +63,7 @@ export default async function ClasificacionPage() {
     needsDraw: p.needsDraw,
     totalPoints: p.metrics.totalPoints,
     categoryPoints: pointsByUser.get(p.userId),
+    delta: rankDelta(previousPositions, p.userId, p.rank),
   }));
 
   return (

@@ -8,6 +8,13 @@
       "when": 1780693026740,
       "tag": "0000_create_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1781081539022,
+      "tag": "0001_add_positions_to_recalculations",
+      "breakpoints": true
     }
   ]
 }
