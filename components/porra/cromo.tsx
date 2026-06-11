@@ -5,32 +5,49 @@ import { cn } from "@/lib/utils";
 
 // Cromo: la unidad visual del álbum (design-system §4, §5). Reemplaza el uso
 // genérico de Card en las pantallas de dominio.
-//   - normal: carta colocada (superficie + borde slot + micro-elevación).
-//   - foil: el shiny holográfico, reservado al #1 y al campeón.
-//   - empty: hueco del álbum (borde discontinuo + "?" tenue).
+//   - normal: carta colocada, con material real (gloss + gleam + sombra en capas).
+//   - slot: hueco editable aún sin rellenar (borde discontinuo, sin material),
+//           pero con los hijos en flujo (p. ej. el duelo con sus inputs "?").
+//   - empty: hueco sin contenido (borde discontinuo + "?" centrado).
+// El shiny holográfico (el #1) es <FoilCromo>, no una variante de aquí.
+//
+// El material vive en .cromo-card (globals.css). Aquí solo se componen clases y
+// se colocan los adornos como spans absolutos: al estar fuera de flujo no
+// estorban a layouts flex/grid de los hijos.
 
-const cromoVariants = cva(
-  "relative rounded-[14px] p-4 transition-[transform,box-shadow] duration-150 motion-reduce:transition-none",
-  {
-    variants: {
-      variant: {
-        normal:
-          "border border-slot bg-surface text-ink shadow-sm hover:-translate-y-0.5 hover:shadow-md",
-        foil: "cromo-foil bg-surface text-ink shadow-sm hover:-translate-y-0.5 hover:shadow-md",
-        empty:
-          "flex items-center justify-center border border-dashed border-slot bg-bg text-ink-muted",
-      },
-    },
-    defaultVariants: {
-      variant: "normal",
+const cromoVariants = cva("relative", {
+  variants: {
+    variant: {
+      normal: "cromo-card text-ink",
+      slot: "rounded-[18px] border-[1.5px] border-dashed border-slot bg-bg px-4 pt-[18px] pb-4 text-ink",
+      empty:
+        "flex min-h-16 items-center justify-center rounded-[18px] border-[1.5px] border-dashed border-slot bg-bg p-4 text-ink-muted",
     },
   },
-);
+  defaultVariants: {
+    variant: "normal",
+  },
+});
 
 type CromoProps = React.ComponentProps<"div"> &
-  VariantProps<typeof cromoVariants>;
+  VariantProps<typeof cromoVariants> & {
+    // Pestañita con el número de cromo (p. ej. "CROMO 01"), esquina sup. izq.
+    number?: string;
+    // Badge de estado (p. ej. "✓ colocado"), esquina sup. der. Solo normal/foil.
+    status?: React.ReactNode;
+  };
 
-function Cromo({ className, variant = "normal", children, ...props }: CromoProps) {
+function Cromo({
+  className,
+  variant = "normal",
+  number,
+  status,
+  children,
+  ...props
+}: CromoProps) {
+  const hasMaterial = variant === "normal";
+  const isEmpty = variant === "empty";
+
   return (
     <div
       data-slot="cromo"
@@ -38,7 +55,19 @@ function Cromo({ className, variant = "normal", children, ...props }: CromoProps
       className={cn(cromoVariants({ variant }), className)}
       {...props}
     >
-      {variant === "empty" && children == null ? (
+      {number != null ? (
+        <span className="cromo-num text-cromo-num">{number}</span>
+      ) : null}
+      {hasMaterial && status != null ? (
+        <span className="cromo-state">{status}</span>
+      ) : null}
+      {hasMaterial ? (
+        <>
+          <span aria-hidden className="cromo-gloss" />
+          <span aria-hidden className="cromo-gleam" />
+        </>
+      ) : null}
+      {isEmpty && children == null ? (
         <span aria-hidden className="text-cromo-num text-2xl opacity-60">
           ?
         </span>

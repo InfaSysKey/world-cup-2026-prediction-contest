@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   extractRankingMetrics,
   rankPlayers,
+  snapshotPositions,
   type RankingMetrics,
   type RankingPlayer,
 } from './ranking';
@@ -362,5 +363,31 @@ describe('extractRankingMetrics — lee las métricas de §7 del desglose de sco
       exactGroups: 3,
       awardHits: 2,
     });
+  });
+});
+
+describe('snapshotPositions — { userId: rank } para los deltas (§7)', () => {
+  it('mapea cada userId (como string) a su rango de competición', () => {
+    const positions = snapshotPositions([
+      player(10, 'ben', { totalPoints: 100 }),
+      player(20, 'cas', { totalPoints: 80 }),
+      player(30, 'ana', { totalPoints: 60 }),
+    ]);
+    expect(positions).toEqual({ '10': 1, '20': 2, '30': 3 });
+  });
+
+  it('los empatados genuinos comparten rango (1,2,2,4)', () => {
+    const tied = { totalPoints: 80 };
+    const positions = snapshotPositions([
+      player(1, 'top', { totalPoints: 100 }),
+      player(2, 'tieA', tied),
+      player(3, 'tieB', tied),
+      player(4, 'low', { totalPoints: 50 }),
+    ]);
+    expect(positions).toEqual({ '1': 1, '2': 2, '3': 2, '4': 4 });
+  });
+
+  it('sin jugadores → objeto vacío', () => {
+    expect(snapshotPositions([])).toEqual({});
   });
 });

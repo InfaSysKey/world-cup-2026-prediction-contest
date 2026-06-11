@@ -2,15 +2,16 @@ import { asc, eq } from 'drizzle-orm';
 
 import { GROUP_LETTERS } from '@/lib/constants';
 import { db, matches } from '@/lib/db';
+import { flagIconCode } from '@/lib/flags';
 
 export type GroupMatchCatalogItem = {
   id: number;
   homeCode: string;
   homeName: string;
-  homeFlag: string;
+  homeFlagCode: string;
   awayCode: string;
   awayName: string;
-  awayFlag: string;
+  awayFlagCode: string;
 };
 
 export type GroupCatalog = {
@@ -42,10 +43,10 @@ export async function loadGroupMatches(): Promise<GroupCatalog[]> {
         id: m.id,
         homeCode: homeTeam.code,
         homeName: homeTeam.nameEs,
-        homeFlag: homeTeam.flagEmoji,
+        homeFlagCode: flagIconCode(homeTeam.flagEmoji, homeTeam.code),
         awayCode: awayTeam.code,
         awayName: awayTeam.nameEs,
-        awayFlag: awayTeam.flagEmoji,
+        awayFlagCode: flagIconCode(awayTeam.flagEmoji, awayTeam.code),
       },
     ];
   });

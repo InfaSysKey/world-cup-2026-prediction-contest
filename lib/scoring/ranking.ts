@@ -163,3 +163,16 @@ export function rankPlayers(
   }
   return ranked;
 }
+
+// Snapshot { userId: rank } del ranking, base de los deltas ▲/▼ (data-model
+// §5.5/§6.1). Reusa rankPlayers para no duplicar el desempate de §7. Las claves
+// son strings porque van a una columna jsonb.
+export function snapshotPositions(
+  players: readonly RankingPlayer[],
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const p of rankPlayers(players)) {
+    out[String(p.userId)] = p.rank;
+  }
+  return out;
+}

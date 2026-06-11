@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 
 import { Cromo } from '@/components/porra/cromo';
+import { TeamLabel } from '@/components/porra/team-label';
 import { getCurrentUser } from '@/lib/auth/current-user';
 import {
   loadMatchCalendar,
@@ -49,11 +50,15 @@ function MatchRow({ match }: { match: CalendarMatch }) {
   return (
     <li className="flex flex-col gap-1 border-b border-slot py-2 last:border-0">
       <div className="flex items-center justify-between gap-2 text-sm text-ink">
-        <span className="truncate">{match.home}</span>
+        <span className="min-w-0">
+          <TeamLabel flagCode={match.home.flagCode} name={match.home.name} />
+        </span>
         <span className="shrink-0 font-mono font-medium tabular-nums">
           {match.officialResult ?? 'vs'}
         </span>
-        <span className="truncate text-right">{match.away}</span>
+        <span className="flex min-w-0 justify-end">
+          <TeamLabel flagCode={match.away.flagCode} name={match.away.name} />
+        </span>
       </div>
       <div className="flex items-center justify-between gap-2 text-xs text-ink-muted">
         <span>{DATE_FORMAT.format(match.scheduledAt)}</span>

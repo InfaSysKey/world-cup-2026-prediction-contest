@@ -73,8 +73,11 @@ test('standings – estado vacío: 12 grupos visibles, 4 equipos por grupo, sin 
   const firstDownBtn = page.locator('[data-testid^="gs-order-A-down-"]').first();
   await expect(firstDownBtn).not.toBeDisabled();
 
-  // No hay desempates visibles (usuario nuevo sin marcadores).
-  await expect(page.locator('[data-testid^="gs-tiebreak-"]')).toHaveCount(0);
+  // No hay equipos resaltados ni notas de desempate (usuario nuevo sin marcadores).
+  await expect(
+    page.locator('[data-testid^="gs-order-"] > li[data-tied="true"]'),
+  ).toHaveCount(0);
+  await expect(page.locator('[data-testid^="gs-tie-note-"]')).toHaveCount(0);
 
   // El indicador no muestra error.
   await expect(page.getByTestId('gs-autosave-status')).not.toHaveText(/Error/i);

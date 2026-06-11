@@ -2,11 +2,12 @@ import { asc } from 'drizzle-orm';
 
 import { GROUP_LETTERS } from '@/lib/constants';
 import { db, teams } from '@/lib/db';
+import { flagIconCode } from '@/lib/flags';
 
 export type GroupTeam = {
   code: string;
   name: string;
-  flag: string;
+  flagCode: string;
 };
 
 export type GroupTeamsCatalog = {
@@ -21,7 +22,7 @@ export async function loadGroupTeams(): Promise<GroupTeamsCatalog[]> {
     .select({
       code: teams.code,
       name: teams.nameEs,
-      flag: teams.flagEmoji,
+      flagEmoji: teams.flagEmoji,
       groupLetter: teams.groupLetter,
     })
     .from(teams)
@@ -31,6 +32,10 @@ export async function loadGroupTeams(): Promise<GroupTeamsCatalog[]> {
     groupLetter,
     teams: rows
       .filter((r) => r.groupLetter === groupLetter)
-      .map(({ code, name, flag }) => ({ code, name, flag })),
+      .map(({ code, name, flagEmoji }) => ({
+        code,
+        name,
+        flagCode: flagIconCode(flagEmoji, code),
+      })),
   }));
 }

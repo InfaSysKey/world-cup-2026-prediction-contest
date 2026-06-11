@@ -27,8 +27,22 @@ describe("Cromo", () => {
     expect(screen.queryByText("?")).toBeNull();
   });
 
-  it("aplica la clase foil en la variante foil", () => {
-    const { container } = render(<Cromo variant="foil">#1</Cromo>);
-    expect(container.firstElementChild?.className).toContain("cromo-foil");
+  it("pinta la pestaña de número cuando se pasa number", () => {
+    render(<Cromo number="CROMO 07">contenido</Cromo>);
+    expect(screen.getByText("CROMO 07")).toBeDefined();
+  });
+
+  it("pinta el badge de estado cuando se pasa status", () => {
+    render(<Cromo status="✓ colocado">contenido</Cromo>);
+    expect(screen.getByText("✓ colocado")).toBeDefined();
+  });
+
+  it("oculta el status en la variante empty (el hueco no tiene estado)", () => {
+    render(
+      <Cromo variant="empty" status="✓ colocado">
+        2-1
+      </Cromo>,
+    );
+    expect(screen.queryByText("✓ colocado")).toBeNull();
   });
 });

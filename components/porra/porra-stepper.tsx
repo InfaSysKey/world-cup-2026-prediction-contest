@@ -18,6 +18,7 @@ import { GruposTab } from '@/components/porra/grupos-tab';
 import { PodioTab } from '@/components/porra/podio-tab';
 import { PorraStickyFooter } from '@/components/porra/porra-sticky-footer';
 import { PremiosTab } from '@/components/porra/premios-tab';
+import { TeamLabel } from '@/components/porra/team-label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   BEST_THIRDS_COUNT,
@@ -118,15 +119,15 @@ export function PorraStepper({
 
   // --- Estado y resolución del bracket eliminatorio (sub-slice 4.5) ---
 
-  // Catálogo de equipos plano: code → {flag, name} para etiquetar los cruces, y
-  // code → grupo para resolver los slots de mejor 3.º.
+  // Catálogo de equipos plano: code → {flagCode, name} para etiquetar los cruces,
+  // y code → grupo para resolver los slots de mejor 3.º.
   const { teamLabel, teamGroup, teamName } = useMemo(() => {
-    const label = new Map<string, string>();
+    const label = new Map<string, { flagCode: string; name: string }>();
     const group = new Map<string, string>();
     const nameMap = new Map<string, string>();
     for (const g of groupTeamsCatalog) {
       for (const t of g.teams) {
-        label.set(t.code, `${t.flag} ${t.name}`);
+        label.set(t.code, { flagCode: t.flagCode, name: t.name });
         group.set(t.code, g.groupLetter);
         nameMap.set(t.code, t.name);
       }
@@ -202,7 +203,10 @@ export function PorraStepper({
   );
 
   const knockoutLabel = useCallback(
-    (code: string) => teamLabel.get(code) ?? code,
+    (code: string): React.ReactNode => {
+      const t = teamLabel.get(code);
+      return t ? <TeamLabel flagCode={t.flagCode} name={t.name} /> : code;
+    },
     [teamLabel],
   );
 

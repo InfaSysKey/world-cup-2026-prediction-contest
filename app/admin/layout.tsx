@@ -1,5 +1,6 @@
 import Link from 'next/link';
 
+import { AppHeader } from '@/components/porra/app-header';
 import { requireAdmin } from '@/lib/auth/require-admin';
 
 const NAV = [
@@ -10,16 +11,19 @@ const NAV = [
   { href: '/admin/clasificaciones', label: 'Clasificaciones' },
 ] as const;
 
+// El admin también juega: ve la cabecera de jugador (con vuelta a la porra y
+// toggle de tema) y, debajo, su propia sub-nav de administración (slice 10.1).
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  await requireAdmin();
+  const user = await requireAdmin();
   return (
     <div className="flex min-h-full flex-col">
+      <AppHeader nickname={user.nickname} isAdmin />
       <header className="flex flex-col gap-2 border-b border-slot px-6 py-3">
-        <span className="text-sm font-semibold">Administración · Porra 2026</span>
+        <span className="text-eyebrow">Administración</span>
         <nav className="flex flex-wrap gap-4 text-sm">
           {NAV.map((item) => (
             <Link

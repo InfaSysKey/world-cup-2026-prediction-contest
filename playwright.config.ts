@@ -22,6 +22,13 @@ const LOCKED_PORT = 3001;
 const LOCKED_BASE_URL = `http://localhost:${LOCKED_PORT}`;
 const LOCKED_START_AT = '2020-01-01T00:00:00Z';
 
+// Servidor con predicciones ABIERTAS: fijamos TOURNAMENT_START_AT en un futuro
+// lejano para que el modo abierto sea determinista e independiente del reloj. Si
+// heredara el valor real (.env / CI = pitido inicial del Mundial), el día del
+// cierre la porra se bloquearía a esa hora y TODOS los tests abiertos (que
+// registran y rellenan predicciones) empezarían a fallar de golpe.
+const OPEN_START_AT = '2099-01-01T00:00:00Z';
+
 export default defineConfig({
   testDir: './tests/e2e',
   globalSetup: './tests/e2e/global-setup.ts',
@@ -54,6 +61,9 @@ export default defineConfig({
           url: 'http://localhost:3000',
           reuseExistingServer: !process.env.CI,
           timeout: 120_000,
+          env: {
+            TOURNAMENT_START_AT: OPEN_START_AT,
+          },
         },
       ],
   projects: RUN_LOCKED

@@ -24,9 +24,13 @@ let auditRow: {
   reason: string;
   affectedCategories: string[];
   usersAffected: number;
+  positions: Record<string, number>;
 } | null = null;
 
-const USERS = [{ id: 10 }, { id: 20 }];
+const USERS = [
+  { id: 10, nickname: 'ana', isAdmin: false },
+  { id: 20, nickname: 'ben', isAdmin: false },
+];
 const MATCHES = [
   {
     id: 1,
@@ -143,11 +147,13 @@ describe('recalculateAfterResultChange — recálculo selectivo + auditoría', (
 
     // Una fila por usuario, todas de la misma categoría.
     expect(upserted).toEqual(['group_matches', 'group_matches']);
+    // Ambos usuarios tienen predicciones vacías idénticas → empatan → rango 1,1.
     expect(auditRow).toEqual({
       triggeredBy: 99,
       reason: expect.any(String),
       affectedCategories: ['group_matches'],
       usersAffected: 2,
+      positions: { '10': 1, '20': 1 },
     });
   });
 

@@ -1,11 +1,14 @@
 import { GROUP_LETTERS } from '@/lib/constants';
 import { db, type Match } from '@/lib/db';
+import { flagIconCode } from '@/lib/flags';
 
 import { MatchResultRow, type MatchRowData } from './match-result-row';
 
+type TeamColumns = { code: string; nameEs: string; flagEmoji: string };
+
 type MatchWithTeams = Match & {
-  homeTeam: { code: string; nameEs: string } | null;
-  awayTeam: { code: string; nameEs: string } | null;
+  homeTeam: TeamColumns | null;
+  awayTeam: TeamColumns | null;
 };
 
 const KNOCKOUT_PHASES = [
@@ -28,6 +31,8 @@ function toRowData(match: MatchWithTeams): MatchRowData | null {
     awayCode: match.awayTeam.code,
     homeName: match.homeTeam.nameEs,
     awayName: match.awayTeam.nameEs,
+    homeFlagCode: flagIconCode(match.homeTeam.flagEmoji, match.homeTeam.code),
+    awayFlagCode: flagIconCode(match.awayTeam.flagEmoji, match.awayTeam.code),
     golesLocal: match.realGolesLocal,
     golesVisitante: match.realGolesVisitante,
     winnerTeamCode: match.realWinnerTeamCode,
@@ -37,14 +42,14 @@ function toRowData(match: MatchWithTeams): MatchRowData | null {
 
 function MatchList({ matches }: { matches: MatchWithTeams[] }) {
   return (
-    <div className="flex flex-col">
+    <div className="flex flex-col gap-3">
       {matches.map((match) => {
         const row = toRowData(match);
         if (!row) {
           return (
             <p
               key={match.id}
-              className="border-b border-slot py-2 text-sm text-ink-muted"
+              className="rounded-[14px] border border-dashed border-slot px-3 py-2 text-sm text-ink-muted"
             >
               #{match.id} · {match.homeSlotRef ?? '?'} – {match.awaySlotRef ?? '?'}{' '}
               (pendiente de resolver)
@@ -61,8 +66,8 @@ export default async function PartidosPage() {
   const all = (await db.query.matches.findMany({
     orderBy: (m, { asc }) => [asc(m.scheduledAt), asc(m.id)],
     with: {
-      homeTeam: { columns: { code: true, nameEs: true } },
-      awayTeam: { columns: { code: true, nameEs: true } },
+      homeTeam: { columns: { code: true, nameEs: true, flagEmoji: true } },
+      awayTeam: { columns: { code: true, nameEs: true, flagEmoji: true } },
     },
   })) as MatchWithTeams[];
 

@@ -1,5 +1,7 @@
 'use client';
 
+import type { ReactNode } from 'react';
+
 import type { AutoSaveStatus } from '@/lib/hooks/use-auto-save';
 import type { BracketSide, ResolvedMatch } from '@/lib/scoring/resolve-bracket';
 
@@ -12,8 +14,9 @@ import type { BracketSide, ResolvedMatch } from '@/lib/scoring/resolve-bracket';
 type BracketPhaseProps = {
   tabId: string;
   matches: ResolvedMatch[];
-  // code → "🏴 Nombre". Devuelve el code si el equipo no está en el catálogo.
-  teamLabel: (code: string) => string;
+  // code → <TeamLabel> (bandera + nombre). Devuelve el code si el equipo no está
+  // en el catálogo.
+  teamLabel: (code: string) => ReactNode;
   locked: boolean;
   status: AutoSaveStatus;
   onRetry: () => void;
@@ -122,7 +125,7 @@ function SideButton({
   position: 'home' | 'away';
   side: BracketSide;
   picked: boolean;
-  teamLabel: (code: string) => string;
+  teamLabel: (code: string) => ReactNode;
   locked: boolean;
   onPick: (matchId: number, winnerTeamCode: string) => void;
 }) {
