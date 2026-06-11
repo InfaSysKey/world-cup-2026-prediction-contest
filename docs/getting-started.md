@@ -3,7 +3,7 @@
 Esta guía te lleva desde **cero** hasta tener el proyecto:
 
 - Corriendo en local con `podman-compose up`.
-- Desplegado en un VPS con HTTPS automático.
+- Desplegado en un VPS con Plesk (TLS y reverse-proxy gestionados por Plesk).
 - Con Claude Code configurado y los 3 documentos base en el repo.
 
 Calcula 4–6 horas en total para completar todo. **Hazlo en una sesión seguida** la primera vez para no perder el contexto.
@@ -43,31 +43,23 @@ Tarjeta para el VPS (€5–6/mes).
 
 Si ya tienes el dominio donde irá tu futuro CV, perfecto. Si no, cómpralo en **Namecheap**, **Cloudflare Registrar** o similar. Coste anual €10–15.
 
-Vamos a usar el subdominio `porra.tudominio.com`. El dominio raíz se queda libre para tu CV.
+Vamos a usar el subdominio `porra.carlosdelcura.es`. El dominio raíz se queda libre para tu CV.
 
 ### 1.2 VPS
 
-Tres opciones razonables, ordenadas por relación calidad/precio:
+Setup actual: VPS con **Plesk** preinstalado. Plesk gestiona dominio, TLS (Let's Encrypt automático) y reverse-proxy hacia los backends locales del host. Eso nos quita Caddy del stack: los contenedores solo exponen puertos en `127.0.0.1` y Plesk hace de frente.
 
-| Proveedor | Plan | Specs | Precio | Notas |
-|---|---|---|---|---|
-| **Hetzner** | CX22 | 2 vCPU, 4 GB RAM, 40 GB SSD | ~€4,5/mes | Datacenter en Falkenstein o Helsinki. Mejor latencia desde España |
-| **Contabo** | VPS S | 4 vCPU, 8 GB RAM, 100 GB SSD | ~€5/mes | Más RAM por el mismo precio, pero IO más lenta |
-| **OVH** | VLE-2 | 2 vCPU, 2 GB RAM, 40 GB SSD | ~€4/mes | Datacenter en Madrid (mejor latencia local) |
-
-Recomendación: **Hetzner CX22 en Helsinki o Falkenstein**. Buen equilibrio para este proyecto.
-
-Pide imagen **Debian 12** o **Ubuntu 24.04 LTS** al provisionar.
+Si vas a montar uno desde cero, Hetzner CX22 / OVH con plantilla de Plesk es la opción más cómoda. Si prefieres VPS pelado, usa el `slice-roadmap` original con Caddy (ver ADR [0001](../docs/decisions/0001-stack-tecnico.md)).
 
 ### 1.3 DNS
 
-En Cloudflare (o donde tengas el DNS), crear:
+Plesk pide que el dominio resuelva al IP del VPS antes de poder emitir el cert de Let's Encrypt. En tu proveedor de DNS:
 
 ```
 Type: A
 Name: porra
 Value: <IP del VPS>
-Proxy: DNS only (sin nube naranja al principio, para que Caddy pueda emitir el cert)
+Proxy: DNS only (si usas Cloudflare, sin nube naranja para que Plesk pueda validar el dominio)
 TTL: Auto
 ```
 
@@ -206,7 +198,7 @@ git push -u origin main
 
 ## Fase 3 — Containerización local (60 min)
 
-Vamos a tener 3 contenedores: `db` (Postgres), `app` (Next.js), `proxy` (Caddy). En local solo necesitas `db` corriendo; la app va con `npm run dev`. En producción los tres viven juntos.
+Vamos a tener 2 contenedores: `db` (Postgres) y `app` (Next.js). En local solo necesitas `db` corriendo; la app va con `npm run dev`. En producción los dos corren juntos detrás de Plesk (que hace TLS y reverse-proxy).
 
 ### 3.1 `infra/Containerfile`
 
@@ -230,86 +222,15 @@ EXPOSE 3000
 CMD ["npm", "start"]
 ```
 
-### 3.2 `infra/compose.yml`
+### 3.2 `infra/compose.yaml`
 
-```yaml
-# infra/compose.yml
-version: "3.9"
+Ver `infra/compose.yaml` en el repo. Resumen:
 
-services:
-  db:
-    image: docker.io/postgres:16-alpine
-    container_name: porra-db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: porra
-      POSTGRES_PASSWORD: porra
-      POSTGRES_DB: porra
-    volumes:
-      - porra-db-data:/var/lib/postgresql/data
-      - ./scripts/backups:/backups
-    ports:
-      - "127.0.0.1:5432:5432"   # solo localhost; en VPS no expuesto fuera
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U porra"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+- `db`: postgres:16-alpine, bindeado a `127.0.0.1:5432`. `POSTGRES_PASSWORD` lo lee de `${POSTGRES_PASSWORD:-porra}` (defaultea a `porra` en local).
+- `app`: imagen `ghcr.io/infasyskey/porra-app:${IMAGE_TAG:-latest}`, bindeado a `127.0.0.1:3000`. Lee `APP_URL`, `COOKIE_SECRET` y `POSTGRES_PASSWORD` del entorno.
+- **No hay servicio proxy.** En producción el reverse-proxy lo hace Plesk en el host; en local ni siquiera arrancas el contenedor `app` (vas con `npm run dev`).
 
-  app:
-    build:
-      context: ..
-      dockerfile: infra/Containerfile
-    container_name: porra-app
-    restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: postgres://porra:porra@db:5432/porra
-      APP_URL: https://porra.tudominio.com
-      COOKIE_SECRET: ${COOKIE_SECRET}
-      TOURNAMENT_START_AT: 2026-06-11T17:00:00Z
-    expose:
-      - "3000"
-
-  proxy:
-    image: docker.io/caddy:2-alpine
-    container_name: porra-proxy
-    restart: unless-stopped
-    depends_on:
-      - app
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - porra-caddy-data:/data
-      - porra-caddy-config:/config
-
-volumes:
-  porra-db-data:
-  porra-caddy-data:
-  porra-caddy-config:
-```
-
-### 3.3 `infra/Caddyfile`
-
-```
-porra.tudominio.com {
-    encode gzip
-    reverse_proxy app:3000
-    log {
-        output stdout
-        format console
-    }
-}
-```
-
-Caddy se encarga sólito de pedir el cert a Let's Encrypt en el primer arranque.
-
-### 3.4 Probar la base de datos en local
+### 3.3 Probar la base de datos en local
 
 ```bash
 cd infra
@@ -372,45 +293,32 @@ Verificar que ha leído el `CLAUDE.md` preguntándole algo como "qué stack usa 
 
 Esta fase la haces una sola vez por proyecto.
 
-### 5.1 Conectar y endurecer
+### 5.1 Usuario y SSH (Plesk delante)
 
-Desde tu máquina:
+El VPS viene con Plesk preinstalado: dominios, TLS y firewall los gestiona Plesk. Lo único que necesitas a nivel SO es un usuario para correr podman y SSH con clave para CI.
+
+Desde tu máquina, conecta con el usuario root o admin que te dio el proveedor:
 
 ```bash
-ssh root@<IP_VPS>
+ssh <admin>@<IP_VPS>
 ```
 
 Una vez dentro:
 
 ```bash
-# Actualizar sistema
-apt update && apt upgrade -y
-
 # Crear usuario no-root con sudo
-adduser porra
-usermod -aG sudo porra
+sudo adduser porra
+sudo usermod -aG sudo porra
 
 # Copiar tu clave SSH al nuevo usuario
-mkdir -p /home/porra/.ssh
-cp ~/.ssh/authorized_keys /home/porra/.ssh/
-chown -R porra:porra /home/porra/.ssh
-chmod 700 /home/porra/.ssh
-chmod 600 /home/porra/.ssh/authorized_keys
-
-# Desactivar login root y password auth
-sed -i 's/^#*PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config
-sed -i 's/^#*PasswordAuthentication.*/PasswordAuthentication no/' /etc/ssh/sshd_config
-systemctl restart sshd
-
-# Firewall mínimo
-apt install -y ufw
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow OpenSSH
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw --force enable
+sudo mkdir -p /home/porra/.ssh
+sudo cp ~/.ssh/authorized_keys /home/porra/.ssh/
+sudo chown -R porra:porra /home/porra/.ssh
+sudo chmod 700 /home/porra/.ssh
+sudo chmod 600 /home/porra/.ssh/authorized_keys
 ```
+
+Firewall: gestionado por Plesk (Tools & Settings → Firewall). Asegúrate de que están abiertos 22 (SSH), 80, 443 y los puertos del panel de Plesk (8443/8447 por defecto). **Nada más debe estar expuesto al exterior**. Los puertos 3000 (app) y 5432 (postgres) los bindeamos a `127.0.0.1` desde compose, así que no hace falta tocarlos en el firewall.
 
 Salir y volver a entrar como `porra`:
 
@@ -438,24 +346,55 @@ git clone git@github.com:<tu-user>/porra-mundial-2026.git .
 
 cp .env.example .env
 # Editar .env con valores de PRODUCCIÓN:
-# - COOKIE_SECRET: nuevo, distinto del de local
-# - DATABASE_URL: postgres://porra:porra@db:5432/porra  (db es el nombre del contenedor)
-# - APP_URL: https://porra.tudominio.com
+# - COOKIE_SECRET: openssl rand -base64 32  (nuevo, distinto del de local)
+# - POSTGRES_PASSWORD: openssl rand -base64 24  (NUNCA "porra" en prod)
+# - APP_URL: https://porra.carlosdelcura.es
 # - ADMIN_BOOTSTRAP_*: lo que sea, para el primer admin
 nano .env
 ```
 
+`DATABASE_URL` no hace falta en el `.env` del VPS: el compose lo construye con `POSTGRES_PASSWORD` para que `app` se conecte a `db` por la red interna del compose.
+
 ### 5.4 Primer despliegue manual (luego automatizamos con CI)
 
 ```bash
-cd /opt/porra/infra
-podman-compose build app
-podman-compose up -d
-podman-compose ps
-podman-compose logs -f app
+cd /opt/porra
+podman-compose -f infra/compose.yaml build app
+podman-compose -f infra/compose.yaml up -d
+podman-compose -f infra/compose.yaml ps
+
+# Health check directo contra el contenedor (sin pasar por Plesk todavía)
+curl -fsS http://127.0.0.1:3000/api/health
 ```
 
-Si todo va bien, en menos de un minuto Caddy obtiene el cert, y `https://porra.tudominio.com` responde (devolverá un 404 de Next porque aún no hay rutas, pero responder con HTTPS válido es lo importante).
+Si el health responde `db: "ok"`, el contenedor está sano. Antes de que `https://porra.carlosdelcura.es` responda, hay que dar de alta el dominio en Plesk.
+
+### 5.4.bis Configurar Plesk (one-time)
+
+En el panel de Plesk:
+
+1. **Add Domain** → `porra.carlosdelcura.es`. Sin hosting de archivos (la app la sirve podman, no Plesk).
+2. **SSL/TLS Certificates** → "Get it free" (Let's Encrypt). Marca renovación automática. Activar "Redirect from http to https" y "HSTS".
+3. **Apache & nginx Settings** → "Additional nginx directives":
+   ```
+   location / {
+       proxy_pass http://127.0.0.1:3000;
+       proxy_http_version 1.1;
+       proxy_set_header Host $host;
+       proxy_set_header X-Real-IP $remote_addr;
+       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+       proxy_set_header X-Forwarded-Proto https;
+       proxy_set_header X-Forwarded-Host $host;
+       proxy_set_header Upgrade $http_upgrade;
+       proxy_set_header Connection "upgrade";
+       proxy_read_timeout 60s;
+   }
+   ```
+4. Aplica y prueba:
+   ```bash
+   curl -I https://porra.carlosdelcura.es/api/health
+   ```
+   Debe devolver 200 y los headers de seguridad (CSP, HSTS, X-Frame-Options, etc.).
 
 ### 5.5 Backups
 
@@ -508,7 +447,8 @@ Antes de pasar al slice 1, comprueba:
 
 - [ ] `npm run dev` arranca la app en `http://localhost:3000`.
 - [ ] `podman-compose up -d db` en local levanta Postgres y `psql` conecta.
-- [ ] `https://porra.tudominio.com` responde con HTTPS válido (aunque sea 404).
+- [ ] `https://porra.carlosdelcura.es/api/health` devuelve 200 con `db:"ok"` y headers de seguridad.
+- [ ] `ss -ltn` en el VPS confirma que `:3000` y `:5432` solo escuchan en `127.0.0.1`.
 - [ ] El repo está pusheado a GitHub con los 4 docs base + estructura de carpetas.
 - [ ] Claude Code arranca, ve `CLAUDE.md`, y `/effort` ofrece `ultracode`.
 - [ ] Backup nocturno configurado en el VPS.

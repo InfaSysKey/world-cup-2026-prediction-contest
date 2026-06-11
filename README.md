@@ -7,7 +7,7 @@ App web privada para gestionar la porra del Mundial 2026 entre un grupo cerrado 
 - **Next.js 14** (App Router) + **TypeScript** estricto
 - **PostgreSQL 16** + **Drizzle ORM**
 - **Tailwind CSS** + **shadcn/ui**
-- **Podman** + **Caddy** (TLS automático)
+- **Podman** detrás de **Plesk** (Plesk gestiona dominio, TLS y reverse-proxy)
 - Autenticación propia con cookie httpOnly + bcrypt
 
 ## Documentación

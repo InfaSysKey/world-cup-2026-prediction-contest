@@ -1,7 +1,7 @@
 # 0001 — Stack técnico
 
 **Fecha**: 2026-06-05
-**Estado**: aceptada
+**Estado**: aceptada (modificada por [0008](./0008-deploy-vps-detras-de-plesk.md) en *Reverse proxy* y *Hosting*; el resto sigue vigente)
 
 ## Contexto
 
@@ -22,9 +22,9 @@ Hay que elegir stack para una app web pequeña-mediana (≤15 usuarios) con:
 - **Validación**: Zod.
 - **Auth**: propia (bcrypt + cookies httpOnly + tabla `sessions`). Sin Auth.js, sin Lucia.
 - **Tests**: Vitest (unit) + Playwright (e2e).
-- **Containers**: 3 contenedores (db, app, caddy) con podman-compose.
-- **Reverse proxy**: Caddy (TLS automático).
-- **Hosting**: VPS Hetzner CX22 (€4,5/mes).
+- **Containers**: 3 contenedores (db, app, caddy) con podman-compose. *(Sup. por [ADR 0008](./0008-deploy-vps-detras-de-plesk.md): 2 contenedores, Plesk fuera del compose.)*
+- **Reverse proxy**: Caddy (TLS automático). *(Sup. por [ADR 0008](./0008-deploy-vps-detras-de-plesk.md): Plesk hace TLS y reverse-proxy.)*
+- **Hosting**: VPS Hetzner CX22 (€4,5/mes). *(Sup. por [ADR 0008](./0008-deploy-vps-detras-de-plesk.md): VPS con Plesk preinstalado.)*
 - **CI**: GitHub Actions.
 
 ## Consecuencias

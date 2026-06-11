@@ -1,4 +1,10 @@
-# infra/compose.yml
+# infra/compose.yaml
+#
+# Stack de producción: 2 contenedores (db, app) detrás de Plesk.
+# Plesk (en el host del VPS) hace TLS y reverse-proxy a http://127.0.0.1:3000.
+# Ningún contenedor expone puertos al exterior — todo bindea a 127.0.0.1.
+#
+# En local solo se levanta `db`; la app va con `npm run dev`.
 version: "3.9"
 
 services:
@@ -8,7 +14,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: porra
-      POSTGRES_PASSWORD: porra
+      # En local sin .env, cae al default "porra". En prod el .env del VPS
+      # tiene que sobrescribirlo con un secreto fuerte (ver deploy-vps).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-porra}
       POSTGRES_DB: porra
     volumes:
       - porra-db-data:/var/lib/postgresql/data
@@ -36,28 +44,15 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://porra:porra@db:5432/porra
-      APP_URL: https://porra.tudominio.com
+      DATABASE_URL: postgres://porra:${POSTGRES_PASSWORD:-porra}@db:5432/porra
+      APP_URL: ${APP_URL}
       COOKIE_SECRET: ${COOKIE_SECRET}
       TOURNAMENT_START_AT: "2026-06-11T17:00:00Z"
-    expose:
-      - "3000"
-
-  proxy:
-    image: docker.io/caddy:2-alpine
-    container_name: porra-proxy
-    restart: unless-stopped
-    depends_on:
-      - app
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - porra-caddy-data:/data
-      - porra-caddy-config:/config
+      # 3000 publicado SOLO en localhost del host. Plesk (en el host) hace
+      # reverse-proxy hacia aquí. Si bindeas a 0.0.0.0, abres el backend a
+      # internet saltándote Plesk y los logs.
+      - "127.0.0.1:3000:3000"
 
 volumes:
   porra-db-data:
-  porra-caddy-data:
-  porra-caddy-config:
