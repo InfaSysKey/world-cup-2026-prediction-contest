@@ -26,7 +26,10 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-  // HSTS lo añade Caddy al terminar TLS (ver infra/Caddyfile).
+  // HSTS lo emite la app (no Plesk). Defensa en profundidad: aunque la
+  // configuración de Plesk perdiera el header, sigue viajando con la respuesta.
+  // Los navegadores solo lo honran sobre HTTPS, así que en local (http) es no-op.
+  { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
 ];
 
 const nextConfig: NextConfig = {

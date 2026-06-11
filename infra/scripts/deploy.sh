@@ -4,6 +4,10 @@
 # con reintentos → rollback automático a la imagen anterior si el health check
 # no pasa en 60s.
 #
+# TLS y dominio los maneja Plesk en el host (fuera de este script y del compose).
+# Este script solo se ocupa del contenedor `app` escuchando en 127.0.0.1:3000;
+# Plesk hace reverse-proxy desde porra.carlosdelcura.es hacia ahí.
+#
 #   ./infra/scripts/deploy.sh <sha>
 set -euo pipefail
 

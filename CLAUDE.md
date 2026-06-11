@@ -32,7 +32,7 @@ Aplicación web para gestionar una **porra del Mundial 2026** entre un grupo cer
 | Testing unitario | Vitest | última |
 | Testing e2e | Playwright | última |
 | Containerización | Podman + podman-compose | 4.x+ |
-| Reverse proxy | Caddy (TLS automático) | 2.x |
+| Reverse proxy | Plesk (TLS automático en el host, fuera del compose) | — |
 | CI | GitHub Actions | — |
 
 **No introducir dependencias adicionales sin justificar.** Cada paquete nuevo añade superficie de mantenimiento. Si una funcionalidad cabe en 30 líneas de TypeScript, no se instala una librería.
@@ -76,8 +76,7 @@ Aplicación web para gestionar una **porra del Mundial 2026** entre un grupo cer
 │   └── fixtures/           # helpers y datos compartidos por los tests e2e
 ├── infra/
 │   ├── Containerfile       # imagen de la app
-│   ├── compose.yml         # db + app + caddy
-│   ├── Caddyfile
+│   ├── compose.yaml        # db + app (Plesk hace de proxy fuera del compose)
 │   └── scripts/            # backup, restore, deploy
 ├── .env.example            # plantilla con todas las variables
 ├── .gitignore
@@ -282,7 +281,7 @@ TOURNAMENT_START_AT=2026-06-11T17:00:00Z  # cierre global de predicciones (MVP)
 ## 14. Cómo correr el proyecto en local
 
 ```bash
-# 1. Levantar Postgres + Caddy con podman-compose
+# 1. Levantar Postgres con podman-compose (en local solo necesitas db; la app va con npm run dev)
 cd infra && podman-compose up -d db
 
 # 2. Aplicar migraciones
