@@ -1,56 +1,81 @@
 #!/bin/bash
-# Aplica el slice 11 (reglas v2.0, ADR 0009) sobre la BD del VPS:
+# Aplica el slice 11 (reglas v2.0, ADR 0009) contra el VPS desde la máquina LOCAL.
+# La fuente de los Excel está aquí (porras-excel/), el importer es Python local,
+# y el SQL viaja por SSH hasta el contenedor porra-db del VPS. El operador no
+# tiene que copiar nada al VPS antes.
 #
-#   1. Verifica que hay un backup reciente en infra/scripts/backups/.
-#   2. Verifica que existe el mapping de emails (porra-emails.local).
-#   3. TRUNCATE de predicciones + scores + score_recalculations (preserva
-#      users, sessions, invitations, teams, matches y actual_* / matches.real_*).
-#   4. Aplica la migración 0002 (añade goles_local/visitante a predictions_knockout).
-#   5. Re-importa cada porra del directorio porras-excel/.
-#   6. Lanza scores:recalc-all y muestra un check final.
+# Flujo:
+#   1. Pre-flight: VPS_SSH definido, ssh accesible, contenedores corriendo,
+#      mapping de emails presente, Excels resueltos, backup reciente en el VPS.
+#   2. Confirmación interactiva con el resumen de qué porras se re-importarán.
+#   3. TRUNCATE remoto de predictions_* + scores + score_recalculations.
+#   4. Migración 0002 (idempotente) ejecutada en el contenedor de la app.
+#   5. Re-importa cada porra: importer local → pipe SSH → psql remoto.
+#   6. Recálculo total con npm run scores:recalc-all en el contenedor de la app.
+#   7. Verificación con un SELECT que cuenta filas.
 #
-# Es interactivo: pide confirmación antes de tocar nada. Idempotente en cuanto a
-# las predicciones (re-ejecutar deja el mismo estado).
+# Uso:
+#   VPS_SSH=root@82.223.121.149 ./infra/scripts/v2-apply.sh
 #
-# Uso desde el repo en el VPS:
-#   ./infra/scripts/v2-apply.sh
-#
-# Variables opcionales del entorno:
-#   PORRA_DB_CONTAINER   nombre del contenedor de la BD (default: porra-db)
-#   PORRA_APP_CONTAINER  nombre del contenedor de la app (default: porra-app)
+# Variables del entorno:
+#   VPS_SSH              (obligatoria) destino SSH del VPS.
+#   PORRA_DB_CONTAINER   nombre del contenedor de la BD en el VPS (default: porra-db)
+#   PORRA_APP_CONTAINER  nombre del contenedor de la app  en el VPS (default: porra-app)
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-BACKUP_DIR="${SCRIPT_DIR}/backups"
 EMAIL_FILE="${SCRIPT_DIR}/porra-emails.local"
 EXCEL_DIR="${REPO_DIR}/porras-excel"
 
+VPS_SSH="${VPS_SSH:-}"
 CONTAINER_DB="${PORRA_DB_CONTAINER:-porra-db}"
 CONTAINER_APP="${PORRA_APP_CONTAINER:-porra-app}"
 
 # --- Pre-flight ----------------------------------------------------------------
 
-if ! command -v podman >/dev/null 2>&1; then
-  echo "Falta podman en PATH." >&2
+if [ -z "$VPS_SSH" ]; then
+  echo "Define VPS_SSH antes de ejecutar, p.ej.:" >&2
+  echo "  VPS_SSH=root@82.223.121.149 ./infra/scripts/v2-apply.sh" >&2
   exit 1
 fi
 
+if ! command -v ssh >/dev/null 2>&1; then
+  echo "Falta ssh en PATH." >&2
+  exit 1
+fi
+
+if ! command -v /usr/bin/python3 >/dev/null 2>&1; then
+  echo "Falta /usr/bin/python3 (lo usa el importer)." >&2
+  exit 1
+fi
+
+echo "==> Probando SSH a ${VPS_SSH}"
+if ! ssh -o BatchMode=yes -o ConnectTimeout=8 "$VPS_SSH" true 2>/dev/null; then
+  echo "No puedo conectar por SSH a ${VPS_SSH} (¿clave en ssh-agent? ¿host alcanzable?)." >&2
+  exit 1
+fi
+
+echo "==> Verificando contenedores en el VPS"
+RUNNING="$(ssh "$VPS_SSH" "podman ps --format '{{.Names}}'")"
 for c in "$CONTAINER_DB" "$CONTAINER_APP"; do
-  if ! podman ps --format '{{.Names}}' | grep -qx "$c"; then
-    echo "El contenedor '$c' no está corriendo." >&2
-    echo "Ajusta PORRA_DB_CONTAINER/PORRA_APP_CONTAINER o levanta el stack." >&2
+  if ! echo "$RUNNING" | grep -qx "$c"; then
+    echo "El contenedor '$c' no está corriendo en ${VPS_SSH}." >&2
+    echo "Contenedores arriba: $(echo "$RUNNING" | tr '\n' ' ')" >&2
     exit 1
   fi
 done
 
-LATEST_BACKUP="$(ls -1t "${BACKUP_DIR}"/*.dump 2>/dev/null | head -n1 || true)"
+echo "==> Buscando backup reciente en el VPS"
+LATEST_BACKUP="$(ssh "$VPS_SSH" \
+  "ls -1t /opt/porra/infra/scripts/backups/*.dump 2>/dev/null | head -n1" \
+  || true)"
 if [ -z "$LATEST_BACKUP" ]; then
-  echo "Sin backups en ${BACKUP_DIR}. Ejecuta ./infra/scripts/backup-manual.sh primero." >&2
+  echo "Sin backups en /opt/porra/infra/scripts/backups del VPS." >&2
+  echo "Ejecuta primero: ssh ${VPS_SSH} 'cd /opt/porra && ./infra/scripts/backup-manual.sh'" >&2
   exit 1
 fi
-BACKUP_AGE_MIN=$(( ($(date +%s) - $(stat -c %Y "$LATEST_BACKUP" 2>/dev/null || stat -f %m "$LATEST_BACKUP")) / 60 ))
-echo "Backup más reciente: $(basename "$LATEST_BACKUP") (hace ${BACKUP_AGE_MIN} min)"
+echo "    Último backup: $(basename "$LATEST_BACKUP")"
 
 if [ ! -f "$EMAIL_FILE" ]; then
   echo "Falta ${EMAIL_FILE}." >&2
@@ -63,14 +88,13 @@ if [ ! -d "$EXCEL_DIR" ]; then
   exit 1
 fi
 
-# Valida que cada Excel del mapping existe y resuelve el email (sin tocar BD aún).
+# Valida que cada Excel del mapping existe localmente y resuelve el email.
 declare -a IMPORTS=()
 while IFS='=' read -r file email; do
-  file="${file%% *}"  # tolera espacios al final (no permite ' ' en filename)
   [[ -z "$file" || "$file" =~ ^# ]] && continue
   excel_path="${EXCEL_DIR}/${file}"
   if [ ! -f "$excel_path" ]; then
-    echo "Mapping apunta a ${excel_path} pero el archivo no existe." >&2
+    echo "El mapping apunta a ${excel_path} pero el archivo no existe." >&2
     exit 1
   fi
   if [ -z "$email" ]; then
@@ -86,22 +110,27 @@ if [ "${#IMPORTS[@]}" -eq 0 ]; then
 fi
 
 echo ""
+echo "Destino:           ${VPS_SSH}"
+echo "Contenedor BD:     ${CONTAINER_DB}"
+echo "Contenedor app:    ${CONTAINER_APP}"
+echo "Backup respaldo:   $(basename "$LATEST_BACKUP")"
+echo ""
 echo "Se van a re-importar ${#IMPORTS[@]} porras:"
 for item in "${IMPORTS[@]}"; do
   echo "  - $(basename "${item%%=*}") → ${item##*=}"
 done
 
 echo ""
-read -r -p "¿Continuar? Esto vacía predicciones+scores y re-aplica. [y/N] " ans
+read -r -p "¿Continuar? Esto vacía predicciones+scores en el VPS y re-aplica. [y/N] " ans
 case "${ans:-N}" in
   y|Y|yes|YES|s|S|si|SI|sí|SÍ) ;;
   *) echo "Cancelado."; exit 1 ;;
 esac
 
-# --- TRUNCATE ------------------------------------------------------------------
+# --- TRUNCATE remoto -----------------------------------------------------------
 
-echo "==> TRUNCATE predicciones + scores + auditoría"
-podman exec -i "$CONTAINER_DB" psql -U porra -d porra <<'SQL'
+echo "==> TRUNCATE remoto"
+ssh "$VPS_SSH" "podman exec -i $CONTAINER_DB psql -U porra -d porra" <<'SQL'
 BEGIN;
 TRUNCATE TABLE
   predictions_group_matches,
@@ -115,12 +144,12 @@ RESTART IDENTITY CASCADE;
 COMMIT;
 SQL
 
-# --- Migración -----------------------------------------------------------------
+# --- Migración 0002 ------------------------------------------------------------
 
-echo "==> Aplicando migración 0002 (idempotente)"
-podman exec "$CONTAINER_APP" npm run db:migrate
+echo "==> Aplicando migración 0002"
+ssh "$VPS_SSH" "podman exec $CONTAINER_APP npm run db:migrate"
 
-# --- Re-importación ------------------------------------------------------------
+# --- Re-importación: importer local → SSH → psql remoto ------------------------
 
 echo "==> Re-importando porras"
 for item in "${IMPORTS[@]}"; do
@@ -129,18 +158,18 @@ for item in "${IMPORTS[@]}"; do
   echo "  → $(basename "$excel_path") → ${email}"
   /usr/bin/python3 "${REPO_DIR}/lib/db/seed/import-porra-from-excel.py" \
     "$excel_path" --email "$email" |
-    podman exec -i "$CONTAINER_DB" psql -U porra -d porra >/dev/null
+    ssh "$VPS_SSH" "podman exec -i $CONTAINER_DB psql -U porra -d porra" >/dev/null
 done
 
 # --- Recálculo -----------------------------------------------------------------
 
-echo "==> Recálculo total de scores"
-podman exec "$CONTAINER_APP" npm run scores:recalc-all
+echo "==> Recálculo total"
+ssh "$VPS_SSH" "podman exec $CONTAINER_APP npm run scores:recalc-all"
 
-# --- Verificación final --------------------------------------------------------
+# --- Verificación --------------------------------------------------------------
 
 echo "==> Verificación"
-podman exec "$CONTAINER_DB" psql -U porra -d porra -c "
+ssh "$VPS_SSH" "podman exec $CONTAINER_DB psql -U porra -d porra -c \"
 SELECT
   (SELECT COUNT(*) FROM predictions_group_matches)    AS gm,
   (SELECT COUNT(*) FROM predictions_group_standings)  AS gs,
@@ -150,10 +179,10 @@ SELECT
   (SELECT COUNT(*) FROM predictions_awards)           AS aw,
   (SELECT COUNT(*) FROM scores)                       AS scores,
   (SELECT COUNT(*) FROM score_recalculations)         AS recalcs;
-"
+\""
 
 echo ""
-echo "✔ Listo. Si algo huele raro, restaura el dump:"
-echo "  podman exec porra-db psql -U porra -d postgres -c 'DROP DATABASE porra;'"
-echo "  podman exec porra-db psql -U porra -d postgres -c 'CREATE DATABASE porra OWNER porra;'"
-echo "  podman exec -i porra-db pg_restore -U porra -d porra < ${LATEST_BACKUP}"
+echo "✔ Listo. Si algo huele raro, restaura desde el dump del VPS:"
+echo "  ssh ${VPS_SSH} 'podman exec porra-db psql -U porra -d postgres -c \"DROP DATABASE porra;\"'"
+echo "  ssh ${VPS_SSH} 'podman exec porra-db psql -U porra -d postgres -c \"CREATE DATABASE porra OWNER porra;\"'"
+echo "  ssh ${VPS_SSH} 'podman exec -i porra-db pg_restore -U porra -d porra < ${LATEST_BACKUP}'"
