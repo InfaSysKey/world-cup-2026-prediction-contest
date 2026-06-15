@@ -55,3 +55,11 @@ porras-excel/Excel-Mundial-2026_Ivan.xlsx
 porras-excel/Excel-Mundial-2026-Alber.xlsx
 porras-excel/Excel-Mundial-2026-PORRA-CARLOS.xlsx
 porras-excel/Excel-Mundial-2026-Ruben.xlsx
+
+# Mapeo de emails para v2-apply.sh: contiene direcciones reales de los
+# usuarios. Solo se mantiene en el VPS, nunca en el repo.
+infra/scripts/porra-emails.local
+
+# Backups locales del VPS (formato pg_dump custom). Pueden subirse a B2 con
+# backup-b2.sh pero no entran al repo.
+infra/scripts/backups/*.dump
