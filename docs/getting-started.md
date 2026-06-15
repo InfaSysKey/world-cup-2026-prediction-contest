@@ -171,7 +171,8 @@ Crea `.env.example` en la raíz con el contenido que define `CLAUDE.md §13`. De
 cp .env.example .env
 # Editar .env con valores locales:
 # - COOKIE_SECRET: openssl rand -base64 32
-# - DATABASE_URL: postgres://porra:porra@localhost:5432/porra
+# - POSTGRES_PASSWORD: openssl rand -base64 24
+# - DATABASE_URL: postgres://porra:<POSTGRES_PASSWORD>@localhost:5432/porra
 # - ADMIN_BOOTSTRAP_EMAIL/PASSWORD: lo que tú quieras (uso único)
 ```
 
@@ -226,7 +227,7 @@ CMD ["npm", "start"]
 
 Ver `infra/compose.yaml` en el repo. Resumen:
 
-- `db`: postgres:16-alpine, bindeado a `127.0.0.1:5432`. `POSTGRES_PASSWORD` lo lee de `${POSTGRES_PASSWORD:-porra}` (defaultea a `porra` en local).
+- `db`: postgres:16-alpine, bindeado a `127.0.0.1:5432`. `POSTGRES_PASSWORD` lo lee del `.env` (obligatorio, sin default — el compose falla si no está definido).
 - `app`: imagen `ghcr.io/infasyskey/porra-app:${IMAGE_TAG:-latest}`, bindeado a `127.0.0.1:3000`. Lee `APP_URL`, `COOKIE_SECRET` y `POSTGRES_PASSWORD` del entorno.
 - **No hay servicio proxy.** En producción el reverse-proxy lo hace Plesk en el host; en local ni siquiera arrancas el contenedor `app` (vas con `npm run dev`).
 
@@ -237,8 +238,8 @@ cd infra
 podman-compose up -d db
 podman-compose logs -f db   # Ctrl+C cuando veas "ready to accept connections"
 
-# Verificar conexión desde la máquina
-psql postgres://porra:porra@localhost:5432/porra -c "SELECT version();"
+# Verificar conexión desde la máquina (sustituye <POSTGRES_PASSWORD> por el de tu .env)
+psql "postgres://porra:<POSTGRES_PASSWORD>@localhost:5432/porra" -c "SELECT version();"
 ```
 
 Si responde con la versión, el primer hito está hecho.
@@ -347,7 +348,7 @@ git clone git@github.com:<tu-user>/porra-mundial-2026.git .
 cp .env.example .env
 # Editar .env con valores de PRODUCCIÓN:
 # - COOKIE_SECRET: openssl rand -base64 32  (nuevo, distinto del de local)
-# - POSTGRES_PASSWORD: openssl rand -base64 24  (NUNCA "porra" en prod)
+# - POSTGRES_PASSWORD: openssl rand -base64 24  (genera uno fuerte; nunca un valor débil en prod)
 # - APP_URL: https://porra.carlosdelcura.es
 # - ADMIN_BOOTSTRAP_*: lo que sea, para el primer admin
 nano .env

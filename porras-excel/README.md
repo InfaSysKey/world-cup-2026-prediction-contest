@@ -2,54 +2,65 @@
 
 Este directorio contiene los Excel personales que cada amigo ha rellenado con su porra del Mundial 2026. El script `lib/db/seed/import-porra-from-excel.py` los convierte en `INSERT`s para las tablas `predictions_*`.
 
-## Para cargar tu porra cuando crees el usuario destino
+## Aplicar en local (`podman` de dev)
 
 ```bash
-# 1. Crea el usuario en BD (con bcrypt cost 12):
-podman exec porra-db psql -U porra -d porra -c "INSERT INTO users (email, password_hash, nombre, apellidos, nickname, is_admin) VALUES ('carlos@porra.local', '<bcrypt-hash>', 'Carlos', 'Apellido', 'carlos', false);"
-
-# 2. Genera y aplica:
 /usr/bin/python3 lib/db/seed/import-porra-from-excel.py \
   porras-excel/Excel-Mundial-2026-PORRA-CARLOS.xlsx \
-  --email carlos@porra.local \
+  --email <email-del-usuario> \
   | podman exec -i porra-db psql -U porra -d porra
 ```
 
-## Generar el bcrypt-hash
+## Aplicar en el VPS de producción
 
-```bash
-node -e "console.log(require('bcrypt').hashSync('una-pass', 12))"
-```
-
-## Cargar las porras del resto de amigos
-
-Mismo script, solo cambias `--email` y la ruta al `.xlsx`. Idempotente: aplicar dos veces deja la BD igual (DELETE + INSERT del usuario en una transacción).
-
-## Inspeccionar antes de aplicar
+Mismo comando, pero el destino es el contenedor `porra-db` que corre en el VPS. El Python se ejecuta en local; solo viaja el SQL por SSH:
 
 ```bash
 /usr/bin/python3 lib/db/seed/import-porra-from-excel.py \
   porras-excel/Excel-Mundial-2026-PORRA-CARLOS.xlsx \
-  --email carlos@porra.local \
-  -o /tmp/porra-carlos.sql
-
-# Revisa el .sql; debe tener 169 filas VALUES (72+48+8+32+9).
-grep -c "^    (target_user_id" /tmp/porra-carlos.sql
+  --email <email-del-usuario> \
+  | ssh <usuario>@<host-vps> "podman exec -i porra-db psql -U porra -d porra"
 ```
 
-## Comprobar después de aplicar
+El `.xlsx` NO necesita estar en el VPS — el Python lo lee en local y solo se manda el SQL (~200 líneas) por SSH.
+
+## Crear el usuario destino (solo si no está registrado)
+
+```bash
+# 1. Genera el hash bcrypt en local:
+HASH=$(node -e "console.log(require('bcrypt').hashSync('una-pass', 12))")
+
+# 2. Insértalo:
+podman exec porra-db psql -U porra -d porra -c \
+  "INSERT INTO users (email, password_hash, nombre, apellidos, nickname, is_admin) \
+   VALUES ('<email>', '$HASH', '<Nombre>', '<Apellidos>', '<nickname>', false);"
+```
+
+(Si tu amigo ya se ha registrado por el flujo normal de invitación, salta este paso.)
+
+## Inspeccionar el SQL antes de aplicar
+
+```bash
+/usr/bin/python3 lib/db/seed/import-porra-from-excel.py \
+  porras-excel/Excel-Mundial-2026-PORRA-CARLOS.xlsx \
+  --email <email-del-usuario> \
+  -o /tmp/porra.sql
+
+# Debe tener 169 filas VALUES (72+48+8+32+9):
+grep -c "^    (target_user_id" /tmp/porra.sql
+```
+
+## Comprobar después de aplicar (debe dar 72 / 48 / 8 / 32 / 9)
 
 ```bash
 podman exec porra-db psql -U porra -d porra -c "
-  WITH u AS (SELECT id FROM users WHERE email='carlos@porra.local')
+  WITH u AS (SELECT id FROM users WHERE email='<email>')
   SELECT 'grp_matches', COUNT(*) FROM predictions_group_matches WHERE user_id = (SELECT id FROM u)
   UNION ALL SELECT 'standings', COUNT(*) FROM predictions_group_standings WHERE user_id = (SELECT id FROM u)
   UNION ALL SELECT 'thirds', COUNT(*) FROM predictions_best_thirds WHERE user_id = (SELECT id FROM u)
   UNION ALL SELECT 'knockout', COUNT(*) FROM predictions_knockout WHERE user_id = (SELECT id FROM u)
   UNION ALL SELECT 'awards', COUNT(*) FROM predictions_awards WHERE user_id = (SELECT id FROM u);"
 ```
-
-Esperado: 72 / 48 / 8 / 32 / 9.
 
 ## Qué hace el script (resumen)
 
