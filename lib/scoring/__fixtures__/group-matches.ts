@@ -1,7 +1,10 @@
-// Casos canónicos de §3.1 (marcadores de fase de grupos), regla por outcome 1X2
-// (ADR 0006). Cada caso es una tripleta predicción + oficial → esperado, con el
+// Casos canónicos de §3.1 (marcadores de fase de grupos), regla v2.0 del Excel
+// (ADR 0009). Cada caso es una tripleta predicción + oficial → esperado, con el
 // esperado calculado A MANO desde la doc. NO derivar el esperado con la función
 // que se testea: este fixture es la red de seguridad.
+//
+// Tabla: 5 (exacto) / 3 (signo 1X2, marcador no exacto) / 0 (resto). Sin
+// penalización por hueco (v2.0 eliminó la categoría `penalties`).
 
 import type {
   GroupMatchOfficial,
@@ -30,7 +33,7 @@ export const groupMatchCases: GroupMatchCase[] = [
     expected: { points: 3, reason: 'result' },
   },
   {
-    name: 'acierto de 1X2 acertando solo los goles del ganador (2-1 vs 2-0) → 3 (ADR 0006)',
+    name: 'acierto de 1X2 acertando solo los goles del ganador (2-1 vs 2-0) → 3',
     prediction: { golesLocal: 2, golesVisitante: 1 },
     official: { golesLocal: 2, golesVisitante: 0, cancelled: false },
     expected: { points: 3, reason: 'result' },
@@ -42,16 +45,16 @@ export const groupMatchCases: GroupMatchCase[] = [
     expected: { points: 3, reason: 'result' },
   },
   {
-    name: 'fallas el 1X2 pero aciertas los goles del local (2-1 vs 2-3) → 1',
+    name: 'fallo de 1X2 acertando los goles del local (2-1 vs 2-3) → 0 (v2.0 no premia diferencia)',
     prediction: { golesLocal: 2, golesVisitante: 1 },
     official: { golesLocal: 2, golesVisitante: 3, cancelled: false },
-    expected: { points: 1, reason: 'one_goal' },
+    expected: { points: 0, reason: 'wrong' },
   },
   {
-    name: 'fallas el 1X2 pero aciertas los goles del visitante (0-0 vs 2-0) → 1',
+    name: 'fallo de 1X2 acertando los goles del visitante (0-0 vs 2-0) → 0',
     prediction: { golesLocal: 0, golesVisitante: 0 },
     official: { golesLocal: 2, golesVisitante: 0, cancelled: false },
-    expected: { points: 1, reason: 'one_goal' },
+    expected: { points: 0, reason: 'wrong' },
   },
   {
     name: 'fallo total: outcome y goles erróneos (2-1 vs 0-3) → 0',
@@ -60,10 +63,10 @@ export const groupMatchCases: GroupMatchCase[] = [
     expected: { points: 0, reason: 'wrong' },
   },
   {
-    name: 'predicción vacía → -1 (penalización §4)',
+    name: 'predicción vacía → 0 (v2.0 no penaliza huecos)',
     prediction: null,
     official: { golesLocal: 2, golesVisitante: 1, cancelled: false },
-    expected: { points: -1, reason: 'empty' },
+    expected: { points: 0, reason: 'empty' },
   },
   {
     name: 'partido cancelado (§6.1) → 0, sin penalización',

@@ -130,14 +130,17 @@ export type BestThirdsBatchInput = z.infer<typeof bestThirdsBatchSchema>;
 
 // --- Bracket eliminatorio (predictions_knockout) ---
 
-// El usuario predice el ganador de un cruce cada vez que pulsa: una predicción
-// por partido. Los ids de eliminatorias van del 73 al 104 (data-model.md §4.4,
-// seed/matches.ts). El winner es un code de equipo; la coherencia "ese equipo
-// jugó realmente el cruce" es warning cross-tab (bracket rígido, ADR 0003), no
-// se valida aquí. La existencia del team_code en `teams` se comprueba en la
-// Server Action.
-// Los cruces de eliminatorias son los partidos posteriores a la fase de grupos
-// (data-model.md §4.4, seed/matches.ts): del 73 al 104.
+// El usuario predice ganador + marcador al 120' (90'+prórroga, sin penaltis,
+// scoring-rules.md §3.3) por cada cruce. Los ids de eliminatorias van del 73 al
+// 104 (data-model.md §4.4, seed/matches.ts).
+//
+// El winner es obligatorio (lo decide quién pasa a la siguiente ronda, por
+// penaltis si el marcador queda empate). El marcador es opcional: registros
+// previos a la v2.0 del reglamento no lo tienen, y un guardado parcial está
+// permitido. Si ambos goles vienen y son distintos, en la Server Action se
+// valida que el winner coincida con el lado mayor (necesita conocer
+// home/away del match). La coherencia "ese equipo jugó realmente el cruce" es
+// warning cross-tab (bracket rígido, ADR 0003).
 const KNOCKOUT_MATCH_ID_MIN = MATCHES_GROUP_STAGE + 1;
 const KNOCKOUT_MATCH_ID_MAX = MATCHES_TOTAL;
 
@@ -148,6 +151,8 @@ export const knockoutPredictionSchema = z.object({
     .min(KNOCKOUT_MATCH_ID_MIN)
     .max(KNOCKOUT_MATCH_ID_MAX),
   winnerTeamCode: teamCode,
+  golesLocal: goles.nullable().optional(),
+  golesVisitante: goles.nullable().optional(),
 });
 export type KnockoutPredictionInput = z.infer<typeof knockoutPredictionSchema>;
 

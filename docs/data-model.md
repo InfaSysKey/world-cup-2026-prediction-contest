@@ -208,17 +208,21 @@ Los 8 mejores terceros que el usuario predice que clasifican.
 
 ### 4.4 `predictions_knockout`
 
-Ganadores que el usuario predice para cada cruce eliminatorio.
+Ganador + marcador que el usuario predice para cada cruce eliminatorio. Desde v1.1 incluye marcador (5 pts exacto / 3 pts signo 1X2, ver `scoring-rules.md` §3.3).
 
 | Columna | Tipo | Nullable | Default | Notas |
 |---|---|---|---|---|
 | `id` | `bigserial` PK | no | — | |
 | `user_id` | `bigint` FK | no | — | |
 | `match_id` | `smallint` FK → `matches.id` | no | — | Solo `phase != 'grupos'` |
-| `winner_team_code` | `text` FK → `teams.code` | no | — | |
+| `winner_team_code` | `text` FK → `teams.code` | no | — | Quien pasa a la siguiente ronda (por penaltis si empate) |
+| `goles_local` | `smallint` | sí | `null` | Predicción goles del local al 120' (90'+prórroga, sin penaltis). CHECK 0–20. Nullable solo por compatibilidad con registros previos a v1.1 |
+| `goles_visitante` | `smallint` | sí | `null` | Idem visitante |
 | `created_at` / `updated_at` | `timestamptz` | no | `now()` | |
 
 **Constraint UNIQUE** `(user_id, match_id)`.
+
+**Validación en app**: si ambos goles están rellenos y `goles_local != goles_visitante`, `winner_team_code` debe coincidir con el lado del marcador mayor. Si los goles son iguales (empate al 120'), `winner_team_code` es libre (representa quién pasa en penaltis).
 
 **Índices**: `user_id` (porra del usuario) y `match_id` (comparativa por cruce).
 
@@ -287,7 +291,7 @@ Desglose de puntos por usuario y categoría. Una fila por usuario y categoría. 
 |---|---|---|---|---|
 | `id` | `bigserial` PK | no | — | |
 | `user_id` | `bigint` FK | no | — | |
-| `category` | `text` | no | — | Enum: `group_matches`, `group_standings`, `best_thirds`, `bracket`, `podium`, `awards`, `penalties` |
+| `category` | `text` | no | — | Enum (v1.1): `group_matches`, `group_standings`, `bracket`, `team_advancement`, `podium`, `awards`. v1.0 incluía `best_thirds` y `penalties`, eliminadas con la adopción de las reglas v2.0 del Excel canónico (ADR 0009) |
 | `points` | `integer` | no | `0` | Puede ser negativo (penalties) |
 | `detail` | `jsonb` | no | `'{}'` | Estructura por categoría con desglose detallado (qué aciertos contribuyeron) |
 | `calculated_at` | `timestamptz` | no | `now()` | |
@@ -403,9 +407,14 @@ Esto se genera scripteando la `Combinaciones` del Excel original. Tarea del slic
 
 ## 10. Versionado
 
-Este documento es **v1.0**. Cualquier cambio de tabla, columna o constraint genera:
+Este documento es **v1.1**. Cualquier cambio de tabla, columna o constraint genera:
 
-1. Bump de versión (`v1.1`, etc.).
+1. Bump de versión (`v1.2`, etc.).
 2. Nueva migración Drizzle.
 3. Entrada en `score_recalculations` si afecta a puntos.
 4. ADR en `docs/decisions/` si el cambio es estructural.
+
+### Changelog
+
+- **v1.1** (2026-06-15) — §4.4: `predictions_knockout` añade `goles_local` y `goles_visitante` (smallint, nullable, CHECK 0–20) para soportar la puntuación de marcador en eliminatorias del Excel canónico. §5.4: `scores.category` pasa de 7 categorías a 6 (`group_matches`, `group_standings`, `bracket`, `team_advancement`, `podium`, `awards`); se eliminan `best_thirds` y `penalties`, se añade `team_advancement`. Ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md` y migración `0002_add_goles_to_predictions_knockout.sql`.
+- **v1.0** — versión inicial (15 tablas, 7 categorías de scoring).

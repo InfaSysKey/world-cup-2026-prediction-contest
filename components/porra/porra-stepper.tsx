@@ -145,6 +145,24 @@ export function PorraStepper({
       winnerTeamCode: k.winnerTeamCode,
     })),
   );
+  // Marcadores predichos del bracket (scoring-rules.md §3.3, v2.0). Vienen del
+  // Excel del usuario en la importación y no se editan en esta UI (el lock global
+  // está activo). Read-only display en BracketPhase.
+  const knockoutScoreByMatch = useMemo(() => {
+    const m = new Map<
+      number,
+      { golesLocal: number; golesVisitante: number }
+    >();
+    for (const k of initialData.knockout) {
+      if (k.golesLocal !== null && k.golesVisitante !== null) {
+        m.set(k.matchId, {
+          golesLocal: k.golesLocal,
+          golesVisitante: k.golesVisitante,
+        });
+      }
+    }
+    return m;
+  }, [initialData.knockout]);
   // Snapshot vivo de los picks: onPick acumula sobre el ref para que pulsaciones
   // muy seguidas no dependan del re-render entre clics. El autosave guarda el
   // snapshot COMPLETO, nunca un delta suelto (CRÍTICO 1).
@@ -463,6 +481,7 @@ export function PorraStepper({
                   status={knockoutStatus}
                   onRetry={retryKnockout}
                   onPick={onPick}
+                  scoreByMatch={knockoutScoreByMatch}
                 />
               </section>
             ) : (

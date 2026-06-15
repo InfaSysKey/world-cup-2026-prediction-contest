@@ -452,7 +452,7 @@ def _sql_str(s):
     return "'" + str(s).replace("'", "''") + "'"
 
 
-def emit_sql(email, group_marc, standings, best_thirds, winners, podium, boots, balls):
+def emit_sql(email, group_marc, standings, best_thirds, winners, knockout_marc, podium, boots, balls):
     champion, runner_up, third = podium
 
     parts = []
@@ -517,15 +517,18 @@ def emit_sql(email, group_marc, standings, best_thirds, winners, podium, boots, 
     parts.append(",\n".join(rows) + ";")
     parts.append("")
 
-    # 5. Eliminatorias
-    parts.append("  -- 5. Ganadores de eliminatorias (32)")
+    # 5. Eliminatorias (v2.0: ganador + marcador al 120', ADR 0009)
+    parts.append("  -- 5. Ganadores + marcadores al 120' de eliminatorias (32)")
     parts.append(
-        "  INSERT INTO predictions_knockout (user_id, match_id, winner_team_code) VALUES"
+        "  INSERT INTO predictions_knockout"
+        " (user_id, match_id, winner_team_code, goles_local, goles_visitante) VALUES"
     )
-    rows = [
-        f"    (target_user_id, {mid}, {_sql_str(winners[mid])})"
-        for mid in sorted(winners)
-    ]
+    rows = []
+    for mid in sorted(winners):
+        gl, gv = knockout_marc[mid]
+        rows.append(
+            f"    (target_user_id, {mid}, {_sql_str(winners[mid])}, {gl}, {gv})"
+        )
     parts.append(",\n".join(rows) + ";")
     parts.append("")
 
@@ -597,6 +600,7 @@ def main():
         standings,
         best_thirds,
         winners,
+        porra["knockout_marcadores"],
         podium,
         porra["boots"],
         porra["balls"],

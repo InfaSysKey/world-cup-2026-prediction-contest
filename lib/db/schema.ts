@@ -55,14 +55,17 @@ export const AWARD_KINDS = [
 ] as const;
 export type AwardKind = (typeof AWARD_KINDS)[number];
 
+// 6 categorías canónicas de v2.0 (scoring-rules.md §9, ADR 0009). Se eliminaron
+// `best_thirds` (predicción se mantiene como input de bracket pero ya no genera
+// puntos propios) y `penalties` (el Excel no penaliza huecos). Se añadió
+// `team_advancement` (2 pts × equipo predicho que llega a cada fase, máx 128).
 export const SCORE_CATEGORIES = [
   'group_matches',
   'group_standings',
-  'best_thirds',
   'bracket',
+  'team_advancement',
   'podium',
   'awards',
-  'penalties',
 ] as const;
 export type ScoreCategory = (typeof SCORE_CATEGORIES)[number];
 
@@ -291,6 +294,10 @@ export const predictionsKnockout = pgTable(
     winnerTeamCode: text('winner_team_code')
       .notNull()
       .references(() => teams.code, { onDelete: 'restrict' }),
+    // Marcador predicho al 120' (90'+prórroga, sin penaltis). Nullable mientras
+    // queden registros previos a la migración 0002 (data-model.md §4.4, v1.1).
+    golesLocal: smallint('goles_local'),
+    golesVisitante: smallint('goles_visitante'),
     createdAt,
     updatedAt,
   },
@@ -298,6 +305,14 @@ export const predictionsKnockout = pgTable(
     unique('uq_pred_knockout_user_match').on(t.userId, t.matchId),
     index('idx_pred_knockout_user_id').on(t.userId),
     index('idx_pred_knockout_match_id').on(t.matchId),
+    check(
+      'chk_pred_knockout_goles_local_range',
+      sql`${t.golesLocal} is null or (${t.golesLocal} between 0 and 20)`,
+    ),
+    check(
+      'chk_pred_knockout_goles_visitante_range',
+      sql`${t.golesVisitante} is null or (${t.golesVisitante} between 0 and 20)`,
+    ),
   ],
 );
 

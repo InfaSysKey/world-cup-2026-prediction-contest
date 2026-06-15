@@ -8,10 +8,11 @@ import {
   type RankingPlayer,
 } from './ranking';
 
-// Ranking general y desempates (scoring-rules.md §7). Funciones PURAS: entran las
-// métricas agregadas de cada jugador, sale el orden con su rango. El criterio 8
-// (sorteo público) NO se aleatoriza aquí: los empates genuinos quedan con el
-// mismo rango y `needsDraw=true` para que el admin los resuelva con random.org.
+// Ranking general y desempates (scoring-rules.md §7, v2.0). Funciones PURAS:
+// entran las métricas agregadas de cada jugador, sale el orden con su rango. El
+// criterio 8 (sorteo público) NO se aleatoriza aquí: los empates genuinos quedan
+// con el mismo rango y `needsDraw=true` para que el admin los resuelva con
+// random.org.
 //
 // Los esperados se calculan A MANO leyendo §7, nunca derivados de la función.
 
@@ -20,11 +21,11 @@ function metrics(partial: Partial<RankingMetrics> = {}): RankingMetrics {
   return {
     totalPoints: 0,
     exactGroupMatches: 0,
-    bracketHits: 0,
+    exactKnockoutMatches: 0,
+    teamAdvancementHits: 0,
     championHit: false,
     runnerUpHit: false,
     thirdHit: false,
-    exactGroups: 0,
     awardHits: 0,
     ...partial,
   };
@@ -71,7 +72,7 @@ describe('rankPlayers — orden base por puntos totales (§7)', () => {
   });
 });
 
-describe('rankPlayers — los 8 criterios de desempate en orden (§7)', () => {
+describe('rankPlayers — los 7 criterios de desempate en orden (§7 v2.0)', () => {
   it('§7.1: empate a puntos → más marcadores exactos de grupos gana', () => {
     const players = [
       player(1, 'ana', { totalPoints: 100, exactGroupMatches: 5 }),
@@ -80,24 +81,42 @@ describe('rankPlayers — los 8 criterios de desempate en orden (§7)', () => {
     expect(order(players)).toEqual(['ben', 'ana']);
   });
 
-  it('§7.2: igualados hasta §7.1 → más cruces de bracket acertados gana', () => {
+  it('§7.2: igualados hasta §7.1 → más marcadores exactos de eliminatorias gana', () => {
     const players = [
       player(1, 'ana', {
         totalPoints: 100,
         exactGroupMatches: 7,
-        bracketHits: 4,
+        exactKnockoutMatches: 2,
       }),
       player(2, 'ben', {
         totalPoints: 100,
         exactGroupMatches: 7,
-        bracketHits: 9,
+        exactKnockoutMatches: 5,
       }),
     ];
     expect(order(players)).toEqual(['ben', 'ana']);
   });
 
-  it('§7.3: igualados hasta §7.2 → haber acertado el campeón gana', () => {
-    const base = { totalPoints: 100, exactGroupMatches: 7, bracketHits: 5 };
+  it('§7.3: igualados hasta §7.2 → más equipos clasificados acertados gana', () => {
+    const base = {
+      totalPoints: 100,
+      exactGroupMatches: 7,
+      exactKnockoutMatches: 3,
+    };
+    const players = [
+      player(1, 'ana', { ...base, teamAdvancementHits: 8 }),
+      player(2, 'ben', { ...base, teamAdvancementHits: 15 }),
+    ];
+    expect(order(players)).toEqual(['ben', 'ana']);
+  });
+
+  it('§7.4: igualados hasta §7.3 → haber acertado el campeón gana', () => {
+    const base = {
+      totalPoints: 100,
+      exactGroupMatches: 7,
+      exactKnockoutMatches: 3,
+      teamAdvancementHits: 10,
+    };
     const players = [
       player(1, 'ana', { ...base, championHit: false }),
       player(2, 'ben', { ...base, championHit: true }),
@@ -105,11 +124,12 @@ describe('rankPlayers — los 8 criterios de desempate en orden (§7)', () => {
     expect(order(players)).toEqual(['ben', 'ana']);
   });
 
-  it('§7.4: igualados hasta §7.3 → haber acertado el subcampeón gana', () => {
+  it('§7.5: igualados hasta §7.4 → haber acertado el subcampeón gana', () => {
     const base = {
       totalPoints: 100,
       exactGroupMatches: 7,
-      bracketHits: 5,
+      exactKnockoutMatches: 3,
+      teamAdvancementHits: 10,
       championHit: true,
     };
     const players = [
@@ -119,11 +139,12 @@ describe('rankPlayers — los 8 criterios de desempate en orden (§7)', () => {
     expect(order(players)).toEqual(['ben', 'ana']);
   });
 
-  it('§7.5: igualados hasta §7.4 → haber acertado el 3.º puesto gana', () => {
+  it('§7.6: igualados hasta §7.5 → haber acertado el 3.º puesto gana', () => {
     const base = {
       totalPoints: 100,
       exactGroupMatches: 7,
-      bracketHits: 5,
+      exactKnockoutMatches: 3,
+      teamAdvancementHits: 10,
       championHit: true,
       runnerUpHit: true,
     };
@@ -134,31 +155,15 @@ describe('rankPlayers — los 8 criterios de desempate en orden (§7)', () => {
     expect(order(players)).toEqual(['ben', 'ana']);
   });
 
-  it('§7.6: igualados hasta §7.5 → más grupos clavados en orden gana', () => {
-    const base = {
-      totalPoints: 100,
-      exactGroupMatches: 7,
-      bracketHits: 5,
-      championHit: true,
-      runnerUpHit: true,
-      thirdHit: true,
-    };
-    const players = [
-      player(1, 'ana', { ...base, exactGroups: 2 }),
-      player(2, 'ben', { ...base, exactGroups: 4 }),
-    ];
-    expect(order(players)).toEqual(['ben', 'ana']);
-  });
-
   it('§7.7: igualados hasta §7.6 → más premios individuales acertados gana', () => {
     const base = {
       totalPoints: 100,
       exactGroupMatches: 7,
-      bracketHits: 5,
+      exactKnockoutMatches: 3,
+      teamAdvancementHits: 10,
       championHit: true,
       runnerUpHit: true,
       thirdHit: true,
-      exactGroups: 3,
     };
     const players = [
       player(1, 'ana', { ...base, awardHits: 1 }),
@@ -174,11 +179,11 @@ describe('rankPlayers — los 8 criterios de desempate en orden (§7)', () => {
       player(2, 'ben', {
         totalPoints: 100,
         exactGroupMatches: 8,
-        bracketHits: 20,
+        exactKnockoutMatches: 20,
+        teamAdvancementHits: 50,
         championHit: true,
         runnerUpHit: true,
         thirdHit: true,
-        exactGroups: 12,
         awardHits: 6,
       }),
     ];
@@ -191,11 +196,11 @@ describe('rankPlayers — §7.8 sorteo: empate genuino', () => {
     const same = {
       totalPoints: 100,
       exactGroupMatches: 7,
-      bracketHits: 5,
+      exactKnockoutMatches: 3,
+      teamAdvancementHits: 10,
       championHit: true,
       runnerUpHit: true,
       thirdHit: true,
-      exactGroups: 3,
       awardHits: 2,
     };
     const ranked = rankPlayers([
@@ -210,11 +215,11 @@ describe('rankPlayers — §7.8 sorteo: empate genuino', () => {
     const tied = {
       totalPoints: 80,
       exactGroupMatches: 5,
-      bracketHits: 3,
+      exactKnockoutMatches: 2,
+      teamAdvancementHits: 4,
       championHit: false,
       runnerUpHit: false,
       thirdHit: false,
-      exactGroups: 1,
       awardHits: 0,
     };
     const ranked = rankPlayers([
@@ -236,14 +241,8 @@ describe('rankPlayers — §7.8 sorteo: empate genuino', () => {
   it('entre empatados genuinos el orden es estable y determinista (por nickname)', () => {
     const same = { totalPoints: 100 };
     // Mismo conjunto, distinto orden de entrada → misma salida.
-    const out1 = order([
-      player(2, 'ben', same),
-      player(1, 'ana', same),
-    ]);
-    const out2 = order([
-      player(1, 'ana', same),
-      player(2, 'ben', same),
-    ]);
+    const out1 = order([player(2, 'ben', same), player(1, 'ana', same)]);
+    const out2 = order([player(1, 'ana', same), player(2, 'ben', same)]);
     expect(out1).toEqual(['ana', 'ben']);
     expect(out2).toEqual(['ana', 'ben']);
   });
@@ -252,11 +251,11 @@ describe('rankPlayers — §7.8 sorteo: empate genuino', () => {
     const base = {
       totalPoints: 100,
       exactGroupMatches: 7,
-      bracketHits: 5,
+      exactKnockoutMatches: 3,
+      teamAdvancementHits: 10,
       championHit: true,
       runnerUpHit: true,
       thirdHit: true,
-      exactGroups: 3,
     };
     const ranked = rankPlayers([
       player(1, 'ana', { ...base, awardHits: 2 }),
@@ -268,69 +267,76 @@ describe('rankPlayers — §7.8 sorteo: empate genuino', () => {
   });
 });
 
-describe('extractRankingMetrics — lee las métricas de §7 del desglose de scores', () => {
-  // Filas tal como las produce compute.ts (detail jsonb por categoría).
+describe('extractRankingMetrics — lee las métricas de §7 del desglose de scores v2.0', () => {
+  // Filas tal como las produce compute.ts v2.0 (detail jsonb por categoría).
   const rows = [
     {
       category: 'group_matches' as const,
       points: 120,
-      detail: { reasons: { exact: 9, result: 4, one_goal: 2, wrong: 1 }, gaps: 0 },
+      detail: { reasons: { exact: 9, result: 4, wrong: 1, empty: 0 } },
     },
     {
       category: 'group_standings' as const,
       points: 40,
-      detail: { exactGroups: 3, gaps: 0 },
-    },
-    {
-      category: 'best_thirds' as const,
-      points: 12,
-      detail: { hits: 4, bonus: 0, gaps: 0 },
+      detail: { emptyPositions: 0 },
     },
     {
       category: 'bracket' as const,
-      points: 70,
-      detail: { hitsByPhase: { '1/16': 5, '1/8': 2, cuartos: 1 } },
+      points: 50,
+      detail: {
+        reasons: { exact: 4, result: 6, wrong: 2, empty: 0 },
+        exactByPhase: { '1/16': 2, '1/8': 1, cuartos: 1 },
+      },
+    },
+    {
+      category: 'team_advancement' as const,
+      points: 40,
+      detail: {
+        byPhase: [
+          { phase: '1/16', hits: 12, points: 24 },
+          { phase: '1/8', hits: 4, points: 8 },
+          { phase: 'cuartos', hits: 2, points: 4 },
+          { phase: 'semi', hits: 1, points: 2 },
+          { phase: '3-4', hits: 1, points: 2 },
+          { phase: 'final', hits: 0, points: 0 },
+        ],
+      },
     },
     {
       category: 'podium' as const,
-      points: 28,
+      points: 40,
       detail: { hits: ['champion', 'third'] },
     },
     {
       category: 'awards' as const,
-      points: 19,
+      points: 17,
       detail: { hits: ['boot_gold', 'ball_silver'] },
-    },
-    {
-      category: 'penalties' as const,
-      points: -3,
-      detail: { groupMatchGaps: 3, groupStandingGaps: 0, bestThirdGaps: 0 },
     },
   ];
 
-  it('totalPoints es la suma de las 7 filas (incluida la penalización negativa)', () => {
-    // 120 + 40 + 12 + 70 + 28 + 19 - 3 = 286.
-    expect(extractRankingMetrics(rows).totalPoints).toBe(286);
+  it('totalPoints es la suma de las 6 filas', () => {
+    // 120 + 40 + 50 + 40 + 40 + 17 = 307.
+    expect(extractRankingMetrics(rows).totalPoints).toBe(307);
   });
 
   it('§7.1 exactGroupMatches sale de group_matches.detail.reasons.exact', () => {
     expect(extractRankingMetrics(rows).exactGroupMatches).toBe(9);
   });
 
-  it('§7.2 bracketHits suma todos los hitsByPhase', () => {
-    // 5 + 2 + 1 = 8.
-    expect(extractRankingMetrics(rows).bracketHits).toBe(8);
+  it('§7.2 exactKnockoutMatches sale de bracket.detail.reasons.exact', () => {
+    expect(extractRankingMetrics(rows).exactKnockoutMatches).toBe(4);
   });
 
-  it('§7.3-7.5 campeón/subcampeón/3.º salen de podium.detail.hits', () => {
+  it('§7.3 teamAdvancementHits suma los hits de todas las fases', () => {
+    // 12 + 4 + 2 + 1 + 1 + 0 = 20.
+    expect(extractRankingMetrics(rows).teamAdvancementHits).toBe(20);
+  });
+
+  it('§7.4-7.6 campeón/subcampeón/3.º salen de podium.detail.hits', () => {
     const m = extractRankingMetrics(rows);
     expect(m.championHit).toBe(true);
     expect(m.runnerUpHit).toBe(false);
     expect(m.thirdHit).toBe(true);
-  });
-
-  it('§7.6 exactGroups sale de group_standings.detail.exactGroups', () => {
-    expect(extractRankingMetrics(rows).exactGroups).toBe(3);
   });
 
   it('§7.7 awardHits es la longitud de awards.detail.hits', () => {
@@ -342,25 +348,25 @@ describe('extractRankingMetrics — lee las métricas de §7 del desglose de sco
     expect(m).toEqual({
       totalPoints: 0,
       exactGroupMatches: 0,
-      bracketHits: 0,
+      exactKnockoutMatches: 0,
+      teamAdvancementHits: 0,
       championHit: false,
       runnerUpHit: false,
       thirdHit: false,
-      exactGroups: 0,
       awardHits: 0,
     });
   });
 
   it('el orden de las filas de entrada es indiferente', () => {
-    const shuffled = [rows[3], rows[6], rows[0], rows[5], rows[1], rows[4], rows[2]];
+    const shuffled = [rows[3], rows[5], rows[0], rows[4], rows[1], rows[2]];
     expect(extractRankingMetrics(shuffled)).toEqual({
-      totalPoints: 286,
+      totalPoints: 307,
       exactGroupMatches: 9,
-      bracketHits: 8,
+      exactKnockoutMatches: 4,
+      teamAdvancementHits: 20,
       championHit: true,
       runnerUpHit: false,
       thirdHit: true,
-      exactGroups: 3,
       awardHits: 2,
     });
   });

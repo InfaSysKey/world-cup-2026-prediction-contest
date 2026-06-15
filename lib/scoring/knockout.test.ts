@@ -3,40 +3,45 @@ import { describe, expect, it } from 'vitest';
 import { knockoutCases } from './__fixtures__/knockout';
 import { scoreKnockoutMatch } from './knockout';
 
-// Puntuación del bracket eliminatorio (scoring-rules.md §3.4, ADR 0003). Función
-// PURA: entra el pick del usuario para un cruce y el oficial (fase + ganador real
-// + cancelado), sale { points, hit }. El bracket es RÍGIDO: solo puntúa si el
-// equipo predicho es exactamente el que ganó ese cruce.
+// Puntuación del marcador de cruces eliminatorios (scoring-rules.md §3.3, v2.0).
+// Función PURA: entra el marcador predicho y el oficial al 120' (90'+prórroga,
+// sin penaltis), sale { points, reason }. 5 (exacto) / 3 (signo 1X2) / 0 (resto).
+// El acierto del ganador del cruce (quien pasa, por penaltis si fuera) NO se mide
+// aquí — vive en team_advancement.
 
-describe('scoreKnockoutMatch (§3.4)', () => {
+describe('scoreKnockoutMatch (§3.3)', () => {
   for (const c of knockoutCases) {
     it(c.name, () => {
-      expect(scoreKnockoutMatch(c.pick, c.official)).toEqual(c.expected);
+      expect(scoreKnockoutMatch(c.prediction, c.official)).toEqual(c.expected);
     });
   }
 
-  // Test explícito de bracket rígido — la regla más fácil de implementar mal.
-  // El usuario predijo ESP como ganador de cuartos, pero ESP cayó antes y ese
-  // cruce real lo ganó BRA. NO puntúa, aunque si hubiera predicho BRA sí.
-  it('bracket rígido: predecir un equipo eliminado da 0, predecir el real da los puntos', () => {
-    const cuartos = (winner: string) =>
-      scoreKnockoutMatch(winner, {
-        phase: 'cuartos',
-        realWinnerTeamCode: 'BRA',
-        cancelled: false,
-      });
+  it('empate al 120\' (decidido en penaltis): el "signo 1X2" es empate, no "gana X"', () => {
+    // Final real 2-2 al 120' (FRA gana por penaltis). Usuario A predijo 2-2 con
+    // ganador FRA: acierta exacto del marcador → 5. Los 2 pts de "Equipo
+    // clasificado para final" se calculan aparte en team_advancement.
+    expect(
+      scoreKnockoutMatch(
+        { golesLocal: 2, golesVisitante: 2 },
+        { golesLocal: 2, golesVisitante: 2, cancelled: false },
+      ),
+    ).toEqual({ points: 5, reason: 'exact' });
 
-    expect(cuartos('ESP')).toEqual({ points: 0, hit: false });
-    expect(cuartos('BRA')).toEqual({ points: 10, hit: true });
+    // Usuario B predijo 1-0 a favor del local: falla 1X2 (predijo local; real
+    // empate) → 0 pts en bracket. Otra vez team_advancement va aparte.
+    expect(
+      scoreKnockoutMatch(
+        { golesLocal: 1, golesVisitante: 0 },
+        { golesLocal: 2, golesVisitante: 2, cancelled: false },
+      ),
+    ).toEqual({ points: 0, reason: 'wrong' });
   });
 
-  it('el máximo por cruce es 25 (final)', () => {
-    expect(
-      scoreKnockoutMatch('ARG', {
-        phase: 'final',
-        realWinnerTeamCode: 'ARG',
-        cancelled: false,
-      }).points,
-    ).toBe(25);
+  it('el máximo por cruce es 5 (exacto), independientemente de la fase', () => {
+    const exactScore = scoreKnockoutMatch(
+      { golesLocal: 3, golesVisitante: 1 },
+      { golesLocal: 3, golesVisitante: 1, cancelled: false },
+    );
+    expect(exactScore.points).toBe(5);
   });
 });

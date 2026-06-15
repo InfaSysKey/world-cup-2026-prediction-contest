@@ -27,12 +27,12 @@ describe('scoreAwards (§3.6)', () => {
     });
   }
 
-  it('el máximo de premios es 50 (15+8+5+12+6+4)', () => {
+  it('el máximo de premios es 44 (10+7+5+10+7+5)', () => {
     const all = awardCases[0];
     const total = scoreAwards(all.picks, all.official).reduce(
       (sum, s) => sum + s.points,
       0,
     );
-    expect(total).toBe(50);
+    expect(total).toBe(44);
   });
 });

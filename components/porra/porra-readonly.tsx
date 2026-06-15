@@ -138,6 +138,21 @@ export function PorraReadonly({
   const winnerByMatch = new Map(
     predictions.knockout.map((p) => [p.matchId, p.winnerTeamCode]),
   );
+  // Marcador knockout predicho al 120' (scoring-rules.md §3.3 v2.0). Solo lo
+  // tienen los registros importados desde Excel; los pre-v2.0 quedan en null y
+  // no se muestra marcador.
+  const koScoreByMatch = new Map<
+    number,
+    { golesLocal: number; golesVisitante: number }
+  >();
+  for (const p of predictions.knockout) {
+    if (p.golesLocal !== null && p.golesVisitante !== null) {
+      koScoreByMatch.set(p.matchId, {
+        golesLocal: p.golesLocal,
+        golesVisitante: p.golesVisitante,
+      });
+    }
+  }
   const awardByKind = new Map<string, UserPredictions['awards'][number]>(
     predictions.awards.map((a) => [a.kind, a]),
   );
@@ -241,11 +256,22 @@ export function PorraReadonly({
                   {KNOCKOUT_PHASE_LABEL[phase]}
                 </h3>
                 <ul className="flex flex-wrap gap-2 text-sm">
-                  {picks.map((p) => (
-                    <li key={p.matchId} className="rounded bg-muted px-2 py-0.5">
-                      {teamLabel(teams, winnerByMatch.get(p.matchId) ?? null)}
-                    </li>
-                  ))}
+                  {picks.map((p) => {
+                    const score = koScoreByMatch.get(p.matchId);
+                    return (
+                      <li
+                        key={p.matchId}
+                        className="rounded bg-muted px-2 py-0.5"
+                      >
+                        {teamLabel(teams, winnerByMatch.get(p.matchId) ?? null)}
+                        {score ? (
+                          <span className="ml-1 tabular-nums text-muted-foreground">
+                            ({score.golesLocal}-{score.golesVisitante})
+                          </span>
+                        ) : null}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             );

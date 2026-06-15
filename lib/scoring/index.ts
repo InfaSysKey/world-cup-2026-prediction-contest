@@ -1,8 +1,8 @@
-// Orquestador del motor de puntuación (scoring-rules.md §9). Es la ÚNICA capa que
-// toca BD: carga las predicciones del usuario + los resultados oficiales, delega
-// el cálculo en el núcleo PURO (compute.ts) y persiste el desglose en `scores`
-// (una fila por categoría). Idempotente: dos ejecuciones dejan las mismas filas
-// (mismos points + detail; `calculated_at` es metadato).
+// Orquestador del motor de puntuación v2.0 (scoring-rules.md §9, ADR 0009). Es la
+// ÚNICA capa que toca BD: carga las predicciones del usuario + los resultados
+// oficiales, delega el cálculo en el núcleo PURO (compute.ts) y persiste el
+// desglose en `scores` (una fila por categoría). Idempotente: dos ejecuciones
+// dejan las mismas filas (mismos points + detail; `calculated_at` es metadato).
 
 import { eq } from 'drizzle-orm';
 
@@ -22,6 +22,7 @@ import {
   SCORE_CATEGORIES,
   scoreRecalculations,
   scores,
+  teams,
   users,
   type ScoreCategory,
 } from '@/lib/db';
@@ -34,13 +35,18 @@ import {
   type ScoreRow,
   type ScoringInputs,
 } from './compute';
-import type { KnockoutPhase } from './knockout';
 import type { PodiumKind, PodiumOfficial, PodiumPicks } from './podium';
 import {
   extractRankingMetrics,
   snapshotPositions,
   type RankingPlayer,
 } from './ranking';
+import { resolveBracket, type ResolvedMatch } from './resolve-bracket';
+import {
+  TEAM_ADVANCEMENT_PHASES,
+  type TeamAdvancementInputs,
+  type TeamAdvancementPhase,
+} from './team-advancement';
 
 export { affectedCategoriesFor, computeScoreRows };
 export type { ResultChange, ScoringInputs };
@@ -51,11 +57,9 @@ export type { ResultChange, ScoringInputs };
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Executor = typeof db | Tx;
 
-// Estrecha Phase → KnockoutPhase por exclusión, sin `as`. Solo se llama sobre
-// cruces ya filtrados (phase !== 'grupos'), así que la rama de error es inalcanzable.
-function toKnockoutPhase(phase: Phase): KnockoutPhase {
+function toAdvancementPhase(phase: Phase): TeamAdvancementPhase {
   if (phase === 'grupos') {
-    throw new Error(`toKnockoutPhase recibió una fase de grupos: ${phase}`);
+    throw new Error(`toAdvancementPhase recibió una fase de grupos: ${phase}`);
   }
   return phase;
 }
@@ -81,11 +85,20 @@ export async function loadScoringInputs(
       id: matches.id,
       phase: matches.phase,
       status: matches.status,
+      homeSlotRef: matches.homeSlotRef,
+      awaySlotRef: matches.awaySlotRef,
+      homeTeamCode: matches.homeTeamCode,
+      awayTeamCode: matches.awayTeamCode,
       realGolesLocal: matches.realGolesLocal,
       realGolesVisitante: matches.realGolesVisitante,
       realWinnerTeamCode: matches.realWinnerTeamCode,
     })
     .from(matches);
+
+  // Catálogo `teams` para el mapeo equipo→grupo que necesita resolveBracket.
+  const allTeams = await exec
+    .select({ code: teams.code, groupLetter: teams.groupLetter })
+    .from(teams);
 
   // Secuencial a propósito: cuando `exec` es una transacción comparte un único
   // cliente pg, que no admite consultas en paralelo (revienta con "another command
@@ -118,6 +131,8 @@ export async function loadScoringInputs(
     .select({
       matchId: predictionsKnockout.matchId,
       winnerTeamCode: predictionsKnockout.winnerTeamCode,
+      golesLocal: predictionsKnockout.golesLocal,
+      golesVisitante: predictionsKnockout.golesVisitante,
     })
     .from(predictionsKnockout)
     .where(eq(predictionsKnockout.userId, userId));
@@ -155,14 +170,14 @@ export async function loadScoringInputs(
   const gsByKey = new Map(
     gsPreds.map((p) => [`${p.groupLetter}:${p.position}`, p.teamCode]),
   );
-  const btByPos = new Map(btPreds.map((p) => [p.position, p.teamCode]));
-  const koByMatch = new Map(koPreds.map((p) => [p.matchId, p.winnerTeamCode]));
+  const koByMatch = new Map(koPreds.map((p) => [p.matchId, p]));
   const predAwardByKind = new Map(awardPreds.map((a) => [a.kind, a]));
   const actualGsByKey = new Map(
     gsActual.map((a) => [`${a.groupLetter}:${a.position}`, a.teamCode]),
   );
   const actualBtByPos = new Map(btActual.map((a) => [a.position, a.teamCode]));
   const actualAwardByKind = new Map(awardsActual.map((a) => [a.kind, a]));
+  const teamGroup = new Map(allTeams.map((t) => [t.code, t.groupLetter]));
 
   // group_matches.
   const groupMatches = allMatches
@@ -200,29 +215,42 @@ export async function loadScoringInputs(
     return { groupLetter, official, predicted };
   });
 
-  // best_thirds.
-  const btPredicted = Array.from(
-    { length: BEST_THIRDS_COUNT },
-    (_, i) => btByPos.get(i + 1) ?? null,
-  );
-  const btOfficialCodes = Array.from(
-    { length: BEST_THIRDS_COUNT },
-    (_, i) => actualBtByPos.get(i + 1) ?? null,
-  );
-  const btOfficial = btOfficialCodes.every((c) => c !== null)
-    ? btOfficialCodes.filter((c): c is string => c !== null)
-    : null;
-
-  // knockout.
-  const knockout = allMatches
-    .filter((m) => m.phase !== 'grupos')
-    .map((m) => ({
+  // knockout markers: marcador predicho/oficial por cruce.
+  const knockoutMatchesRaw = allMatches.filter((m) => m.phase !== 'grupos');
+  const knockoutMarkers = knockoutMatchesRaw.map((m) => {
+    const pred = koByMatch.get(m.id);
+    const predGl = pred?.golesLocal;
+    const predGv = pred?.golesVisitante;
+    const prediction =
+      predGl !== null && predGl !== undefined && predGv !== null && predGv !== undefined
+        ? { golesLocal: predGl, golesVisitante: predGv }
+        : null;
+    const official =
+      m.realGolesLocal !== null && m.realGolesVisitante !== null
+        ? { golesLocal: m.realGolesLocal, golesVisitante: m.realGolesVisitante }
+        : null;
+    return {
       matchId: m.id,
-      phase: toKnockoutPhase(m.phase),
+      phase: toAdvancementPhase(m.phase),
       cancelled: m.status === 'cancelled',
-      realWinnerTeamCode: m.realWinnerTeamCode ?? null,
-      pick: koByMatch.get(m.id) ?? null,
-    }));
+      official,
+      prediction,
+    };
+  });
+
+  // teamAdvancement: equipos predichos y reales por cada una de las 6 fases.
+  const teamAdvancement = buildTeamAdvancementInputs({
+    knockoutMatches: knockoutMatchesRaw,
+    standings: gsPreds,
+    bestThirds: btPreds,
+    knockoutPicks: koPreds.map((p) => ({
+      matchId: p.matchId,
+      winnerTeamCode: p.winnerTeamCode,
+    })),
+    teamGroup,
+    actualGsByKey,
+    actualBtByPos,
+  });
 
   // podium (team_code) y awards (player_name).
   const podiumPicks = buildPodium((kind) => predAwardByKind.get(kind)?.teamCode);
@@ -239,11 +267,220 @@ export async function loadScoringInputs(
   return {
     groupMatches,
     groups,
-    bestThirds: { official: btOfficial, predicted: btPredicted },
-    knockout,
+    knockoutMarkers,
+    teamAdvancement,
     podium: { picks: podiumPicks, official: podiumOfficial },
     awards: { picks: awardPicksRec, official: awardOfficialRec },
   };
+}
+
+// --- Derivación de los inputs de team_advancement ---
+
+type AdvancementSources = {
+  knockoutMatches: ReadonlyArray<{
+    id: number;
+    phase: Phase;
+    homeSlotRef: string | null;
+    awaySlotRef: string | null;
+    homeTeamCode: string | null;
+    awayTeamCode: string | null;
+    realWinnerTeamCode: string | null;
+  }>;
+  standings: ReadonlyArray<{
+    groupLetter: string;
+    position: number;
+    teamCode: string;
+  }>;
+  bestThirds: ReadonlyArray<{ position: number; teamCode: string }>;
+  knockoutPicks: ReadonlyArray<{ matchId: number; winnerTeamCode: string }>;
+  teamGroup: ReadonlyMap<string, string>;
+  actualGsByKey: ReadonlyMap<string, string>;
+  actualBtByPos: ReadonlyMap<number, string>;
+};
+
+const PHASE_COUNTS: Record<TeamAdvancementPhase, number> = {
+  '1/16': 32,
+  '1/8': 16,
+  cuartos: 8,
+  semi: 4,
+  '3-4': 2,
+  final: 2,
+};
+
+const SOURCE_PHASE: Partial<Record<TeamAdvancementPhase, TeamAdvancementPhase>> =
+  {
+    '1/8': '1/16',
+    cuartos: '1/8',
+    semi: 'cuartos',
+    final: 'semi',
+  };
+
+function buildTeamAdvancementInputs(
+  s: AdvancementSources,
+): TeamAdvancementInputs {
+  // Resuelve el bracket del usuario para conocer los 2 equipos predichos en cada
+  // cruce (necesario para derivar perdedores de semis = predicted '3-4').
+  const resolvedMap = resolveBracket({
+    matches: s.knockoutMatches
+      .filter((m) => m.homeSlotRef !== null && m.awaySlotRef !== null)
+      .map((m) => ({
+        id: m.id,
+        phase: m.phase,
+        homeSlotRef: m.homeSlotRef as string,
+        awaySlotRef: m.awaySlotRef as string,
+      })),
+    standings: s.standings,
+    bestThirds: s.bestThirds,
+    knockout: s.knockoutPicks,
+    teamGroup: s.teamGroup,
+  });
+
+  const matchesByPhase = new Map<Phase, number[]>();
+  for (const m of s.knockoutMatches) {
+    const list = matchesByPhase.get(m.phase) ?? [];
+    list.push(m.id);
+    matchesByPhase.set(m.phase, list);
+  }
+
+  // ---- predicted ----
+  const predicted: TeamAdvancementInputs['predicted'] = {
+    '1/16': predictedRoundOf32(s),
+    '1/8': pickedWinnersInPhase(matchesByPhase.get('1/16') ?? [], resolvedMap),
+    cuartos: pickedWinnersInPhase(matchesByPhase.get('1/8') ?? [], resolvedMap),
+    semi: pickedWinnersInPhase(
+      matchesByPhase.get('cuartos') ?? [],
+      resolvedMap,
+    ),
+    '3-4': predictedLosersInPhase(
+      matchesByPhase.get('semi') ?? [],
+      resolvedMap,
+    ),
+    final: pickedWinnersInPhase(matchesByPhase.get('semi') ?? [], resolvedMap),
+  };
+
+  // ---- actual ----
+  const actual: TeamAdvancementInputs['actual'] = {
+    '1/16': actualRoundOf32(s),
+    '1/8': actualWinnersInPhase(s.knockoutMatches, '1/16'),
+    cuartos: actualWinnersInPhase(s.knockoutMatches, '1/8'),
+    semi: actualWinnersInPhase(s.knockoutMatches, 'cuartos'),
+    '3-4': actualLosersInSemis(s.knockoutMatches),
+    final: actualWinnersInPhase(s.knockoutMatches, 'semi'),
+  };
+
+  // Si un set de actual no tiene el tamaño esperado, todavía no está cerrada esa
+  // fase: marca como null para que team_advancement la trate como "pendiente".
+  for (const phase of TEAM_ADVANCEMENT_PHASES) {
+    const list = actual[phase];
+    if (list !== null && list.length !== PHASE_COUNTS[phase]) {
+      actual[phase] = null;
+    }
+  }
+  // Silencia el warning de TS: source phase aún no usado tras simplificar derivación.
+  void SOURCE_PHASE;
+
+  return { predicted, actual };
+}
+
+function predictedRoundOf32(s: AdvancementSources): string[] {
+  const result: string[] = [];
+  for (const st of s.standings) {
+    if (st.position === 1 || st.position === 2) {
+      result.push(st.teamCode);
+    }
+  }
+  for (const b of s.bestThirds) {
+    result.push(b.teamCode);
+  }
+  return result;
+}
+
+function actualRoundOf32(s: AdvancementSources): string[] | null {
+  const codes: string[] = [];
+  for (const groupLetter of GROUP_LETTERS) {
+    for (const pos of [1, 2] as const) {
+      const code = s.actualGsByKey.get(`${groupLetter}:${pos}`);
+      if (!code) {
+        return null;
+      }
+      codes.push(code);
+    }
+  }
+  for (let i = 1; i <= BEST_THIRDS_COUNT; i += 1) {
+    const code = s.actualBtByPos.get(i);
+    if (!code) {
+      return null;
+    }
+    codes.push(code);
+  }
+  return codes;
+}
+
+function pickedWinnersInPhase(
+  matchIds: readonly number[],
+  resolvedMap: ReadonlyMap<number, ResolvedMatch>,
+): string[] {
+  const out: string[] = [];
+  for (const id of matchIds) {
+    const r = resolvedMap.get(id);
+    if (r?.pickedWinner) {
+      out.push(r.pickedWinner);
+    }
+  }
+  return out;
+}
+
+function predictedLosersInPhase(
+  matchIds: readonly number[],
+  resolvedMap: ReadonlyMap<number, ResolvedMatch>,
+): string[] {
+  const out: string[] = [];
+  for (const id of matchIds) {
+    const r = resolvedMap.get(id);
+    if (!r || !r.pickedWinner) {
+      continue;
+    }
+    const home = r.home.teamCode;
+    const away = r.away.teamCode;
+    if (home && r.pickedWinner === home && away) {
+      out.push(away);
+    } else if (away && r.pickedWinner === away && home) {
+      out.push(home);
+    }
+  }
+  return out;
+}
+
+function actualWinnersInPhase(
+  knockoutMatches: AdvancementSources['knockoutMatches'],
+  phase: TeamAdvancementPhase,
+): string[] {
+  const winners: string[] = [];
+  for (const m of knockoutMatches) {
+    if (m.phase === phase && m.realWinnerTeamCode) {
+      winners.push(m.realWinnerTeamCode);
+    }
+  }
+  return winners;
+}
+
+function actualLosersInSemis(
+  knockoutMatches: AdvancementSources['knockoutMatches'],
+): string[] {
+  const losers: string[] = [];
+  for (const m of knockoutMatches) {
+    if (m.phase !== 'semi' || !m.realWinnerTeamCode) {
+      continue;
+    }
+    const home = m.homeTeamCode;
+    const away = m.awayTeamCode;
+    if (home && m.realWinnerTeamCode === home && away) {
+      losers.push(away);
+    } else if (away && m.realWinnerTeamCode === away && home) {
+      losers.push(home);
+    }
+  }
+  return losers;
 }
 
 function buildPodium(
@@ -296,7 +533,7 @@ async function persistScoreRows(
 
 // --- API pública del orquestador ---
 
-// Recalcula y persiste las 7 categorías de un usuario. Idempotente.
+// Recalcula y persiste las 6 categorías v2.0 de un usuario. Idempotente.
 export async function calculateUserScore(userId: number): Promise<void> {
   await db.transaction(async (tx) => {
     const inputs = await loadScoringInputs(tx, userId);
@@ -307,15 +544,14 @@ export async function calculateUserScore(userId: number): Promise<void> {
 
 const CHANGE_REASON: Record<ResultChange['type'], string> = {
   group_match: 'Edición de marcador de fase de grupos',
-  knockout: 'Edición de ganador de cruce eliminatorio',
+  knockout: 'Edición de marcador/ganador de cruce eliminatorio',
   group_standings: 'Edición de la clasificación oficial de un grupo',
   best_thirds: 'Edición de los mejores terceros oficiales',
   award: 'Edición de un premio oficial (podio/botas/balones)',
 };
 
 // Recalcula SOLO las categorías afectadas por un cambio de resultado, para todos
-// los usuarios, usando el ejecutor dado, y registra una fila de auditoría. No
-// toca `penalties` ni ninguna categoría no relacionada (recálculo selectivo §9).
+// los usuarios, usando el ejecutor dado, y registra una fila de auditoría.
 // Esta variante recibe la transacción para que el admin pueda hacer atómicos el
 // guardado del resultado y su recálculo.
 export async function recalculateAfterResultChangeWithTx(
@@ -364,4 +600,46 @@ export async function recalculateAfterResultChange(
   await db.transaction((tx) =>
     recalculateAfterResultChangeWithTx(tx, change, adminUserId),
   );
+}
+
+// Recálculo TOTAL para todos los usuarios y todas las categorías v2.0. Se
+// utiliza tras un cambio estructural del motor (p. ej. adopción de las reglas
+// v2.0 del Excel canónico, ADR 0009): cambian las constantes, las categorías o
+// el algoritmo, y todas las filas de `scores` previas dejan de ser válidas.
+// Idempotente. Deja una única fila de auditoría con el motivo recibido y
+// snapshot del ranking resultante.
+export async function recalculateAll(
+  adminUserId: number,
+  reason: string,
+): Promise<{ usersAffected: number }> {
+  return db.transaction(async (tx) => {
+    const allUsers = await tx
+      .select({
+        id: users.id,
+        nickname: users.nickname,
+        isAdmin: users.isAdmin,
+      })
+      .from(users);
+    const players: RankingPlayer[] = [];
+    for (const u of allUsers) {
+      const inputs = await loadScoringInputs(tx, u.id);
+      const rows = computeScoreRows(inputs);
+      await persistScoreRows(tx, u.id, rows, SCORE_CATEGORIES);
+      if (!u.isAdmin) {
+        players.push({
+          userId: u.id,
+          nickname: u.nickname,
+          metrics: extractRankingMetrics(rows),
+        });
+      }
+    }
+    await tx.insert(scoreRecalculations).values({
+      triggeredBy: adminUserId,
+      reason,
+      affectedCategories: [...SCORE_CATEGORIES],
+      usersAffected: allUsers.length,
+      positions: snapshotPositions(players),
+    });
+    return { usersAffected: allUsers.length };
+  });
 }

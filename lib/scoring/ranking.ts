@@ -1,25 +1,25 @@
-// Ranking general y desempates (scoring-rules.md §7). Funciones PURAS: entran las
-// métricas agregadas de cada jugador (extraídas del desglose de `scores`), sale el
-// orden con su rango. No tocan BD ni React.
+// Ranking general y desempates (scoring-rules.md §7, v2.0). Funciones PURAS:
+// entran las métricas agregadas de cada jugador (extraídas del desglose de
+// `scores`), sale el orden con su rango. No tocan BD ni React.
 //
 // El criterio 8 (sorteo público) NO se aleatoriza en código: los empates que
 // sobreviven a los 7 criterios anteriores quedan con el MISMO rango y
-// `needsDraw=true`, para que el admin los resuelva con random.org (§7.8). El orden
-// de salida entre empatados genuinos es estable (por nickname) solo para que el
-// render sea determinista, sin valor de ranking.
+// `needsDraw=true`, para que el admin los resuelva con random.org (§7.8). El
+// orden de salida entre empatados genuinos es estable (por nickname) solo para
+// que el render sea determinista, sin valor de ranking.
 
 import type { ScoreCategory } from '@/lib/db';
 
 // Las 8 magnitudes que §7 usa para ordenar (puntos totales + los 7 criterios de
-// desempate). Booleanos para los criterios §7.3–7.5 (acertó o no ese puesto).
+// desempate v2.0).
 export type RankingMetrics = {
   totalPoints: number;
   exactGroupMatches: number; // §7.1
-  bracketHits: number; // §7.2
-  championHit: boolean; // §7.3
-  runnerUpHit: boolean; // §7.4
-  thirdHit: boolean; // §7.5
-  exactGroups: number; // §7.6
+  exactKnockoutMatches: number; // §7.2
+  teamAdvancementHits: number; // §7.3
+  championHit: boolean; // §7.4
+  runnerUpHit: boolean; // §7.5
+  thirdHit: boolean; // §7.6
   awardHits: number; // §7.7
 };
 
@@ -82,9 +82,14 @@ export function extractRankingMetrics(
     detailByCategory.set(row.category, row.detail);
   }
 
-  const hitsByPhase = getPath(detailByCategory.get('bracket'), 'hitsByPhase');
-  const bracketHits = isRecord(hitsByPhase)
-    ? Object.values(hitsByPhase).reduce<number>((sum, v) => sum + asNumber(v), 0)
+  // §7.3 — suma de hits en todas las fases de team_advancement.
+  const byPhase = getPath(detailByCategory.get('team_advancement'), 'byPhase');
+  const teamAdvancementHits = Array.isArray(byPhase)
+    ? byPhase.reduce<number>(
+        (sum, entry) =>
+          sum + asNumber(isRecord(entry) ? entry.hits : undefined),
+        0,
+      )
     : 0;
 
   const podiumHits = asStringArray(getPath(detailByCategory.get('podium'), 'hits'));
@@ -94,19 +99,19 @@ export function extractRankingMetrics(
     exactGroupMatches: asNumber(
       getPath(detailByCategory.get('group_matches'), 'reasons', 'exact'),
     ),
-    bracketHits,
+    exactKnockoutMatches: asNumber(
+      getPath(detailByCategory.get('bracket'), 'reasons', 'exact'),
+    ),
+    teamAdvancementHits,
     championHit: podiumHits.includes('champion'),
     runnerUpHit: podiumHits.includes('runner_up'),
     thirdHit: podiumHits.includes('third'),
-    exactGroups: asNumber(
-      getPath(detailByCategory.get('group_standings'), 'exactGroups'),
-    ),
     awardHits: asStringArray(getPath(detailByCategory.get('awards'), 'hits'))
       .length,
   };
 }
 
-// --- Desempates: los criterios de §7 como lista ordenada de magnitudes ---
+// --- Desempates: los criterios de §7 v2.0 como lista ordenada de magnitudes ---
 
 // Cada criterio mapea las métricas a un número "más es mejor". El orden de la
 // lista ES el orden de prioridad de §7; un criterio temprano manda sobre todos
@@ -114,11 +119,11 @@ export function extractRankingMetrics(
 const RANKING_CRITERIA: readonly ((m: RankingMetrics) => number)[] = [
   (m) => m.totalPoints, // §7: puntos totales
   (m) => m.exactGroupMatches, // §7.1
-  (m) => m.bracketHits, // §7.2
-  (m) => (m.championHit ? 1 : 0), // §7.3
-  (m) => (m.runnerUpHit ? 1 : 0), // §7.4
-  (m) => (m.thirdHit ? 1 : 0), // §7.5
-  (m) => m.exactGroups, // §7.6
+  (m) => m.exactKnockoutMatches, // §7.2
+  (m) => m.teamAdvancementHits, // §7.3
+  (m) => (m.championHit ? 1 : 0), // §7.4
+  (m) => (m.runnerUpHit ? 1 : 0), // §7.5
+  (m) => (m.thirdHit ? 1 : 0), // §7.6
   (m) => m.awardHits, // §7.7
 ];
 

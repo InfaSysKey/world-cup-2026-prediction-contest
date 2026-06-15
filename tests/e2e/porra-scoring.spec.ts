@@ -111,7 +111,10 @@ test.beforeAll(async () => {
     .set({ realGolesLocal: 0, realGolesVisitante: 2, status: 'finished' })
     .where(eq(matches.id, 3));
 
-  // Un cruce de 1/16 ganado por el equipo que el usuario predijo → bracket +4.
+  // Un cruce de 1/16 con realWinnerTeamCode = el equipo predicho por el usuario:
+  // en v2.0 no puntúa `bracket` (esa categoría mide marcador 5/3/0 y aquí no
+  // seteamos goles), pero sí team_advancement '1/8' (+2 pts por el equipo
+  // predicho que avanza a octavos).
   const [ko] = await db
     .select({ id: matches.id })
     .from(matches)
@@ -174,8 +177,8 @@ test.describe.serial('motor de puntuación contra Postgres real', () => {
     await calculateUserScore(userId);
     const second = await readScores(userId);
 
-    // Las 7 categorías presentes, y la fila de grupos con el cálculo esperado.
-    expect(first).toHaveLength(7);
+    // Las 6 categorías v2.0 presentes, y la fila de grupos con el cálculo esperado.
+    expect(first).toHaveLength(6);
     const groupMatches = first.find((r) => r.category === 'group_matches');
     expect(groupMatches?.points).toBe(8); // 5 + 3 + 0
 

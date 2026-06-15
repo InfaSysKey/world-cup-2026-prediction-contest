@@ -15,6 +15,13 @@
       "when": 1781081539022,
       "tag": "0001_add_positions_to_recalculations",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1781524740670,
+      "tag": "0002_add_goles_to_predictions_knockout",
+      "breakpoints": true
     }
   ]
 }
