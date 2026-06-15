@@ -601,3 +601,45 @@ export async function recalculateAfterResultChange(
     recalculateAfterResultChangeWithTx(tx, change, adminUserId),
   );
 }
+
+// Recálculo TOTAL para todos los usuarios y todas las categorías v2.0. Se
+// utiliza tras un cambio estructural del motor (p. ej. adopción de las reglas
+// v2.0 del Excel canónico, ADR 0009): cambian las constantes, las categorías o
+// el algoritmo, y todas las filas de `scores` previas dejan de ser válidas.
+// Idempotente. Deja una única fila de auditoría con el motivo recibido y
+// snapshot del ranking resultante.
+export async function recalculateAll(
+  adminUserId: number,
+  reason: string,
+): Promise<{ usersAffected: number }> {
+  return db.transaction(async (tx) => {
+    const allUsers = await tx
+      .select({
+        id: users.id,
+        nickname: users.nickname,
+        isAdmin: users.isAdmin,
+      })
+      .from(users);
+    const players: RankingPlayer[] = [];
+    for (const u of allUsers) {
+      const inputs = await loadScoringInputs(tx, u.id);
+      const rows = computeScoreRows(inputs);
+      await persistScoreRows(tx, u.id, rows, SCORE_CATEGORIES);
+      if (!u.isAdmin) {
+        players.push({
+          userId: u.id,
+          nickname: u.nickname,
+          metrics: extractRankingMetrics(rows),
+        });
+      }
+    }
+    await tx.insert(scoreRecalculations).values({
+      triggeredBy: adminUserId,
+      reason,
+      affectedCategories: [...SCORE_CATEGORIES],
+      usersAffected: allUsers.length,
+      positions: snapshotPositions(players),
+    });
+    return { usersAffected: allUsers.length };
+  });
+}
