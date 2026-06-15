@@ -14,9 +14,9 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: porra
-      # En local sin .env, cae al default "porra". En prod el .env del VPS
-      # tiene que sobrescribirlo con un secreto fuerte (ver deploy-vps).
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-porra}
+      # Se exige siempre (tanto en local como en prod) que el .env defina un
+      # POSTGRES_PASSWORD. Genéralo con `openssl rand -base64 24` (ver deploy-vps).
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerido en .env}
       POSTGRES_DB: porra
     volumes:
       - porra-db-data:/var/lib/postgresql/data
@@ -44,7 +44,7 @@ services:
         condition: service_healthy
     environment:
       NODE_ENV: production
-      DATABASE_URL: postgres://porra:${POSTGRES_PASSWORD:-porra}@db:5432/porra
+      DATABASE_URL: postgres://porra:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD requerido en .env}@db:5432/porra
       APP_URL: ${APP_URL}
       COOKIE_SECRET: ${COOKIE_SECRET}
       TOURNAMENT_START_AT: "2026-06-11T17:00:00Z"

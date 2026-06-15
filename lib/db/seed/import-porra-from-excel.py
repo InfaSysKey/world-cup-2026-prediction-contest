@@ -51,6 +51,27 @@ TEAM_GROUP = {
     "TUN": "F", "TUR": "D", "URY": "H", "USA": "D", "UZB": "K", "ZAF": "A",
 }
 
+# Nombre en español (tal como aparece en el Excel, col D / WINNER) → ISO-3166
+# alpha-3. Misma tabla que extract-from-excel.py, invertida para lookup.
+TEAM_NAME_ES = {
+    "Alemania": "DEU", "Arabia Saudita": "SAU", "Argelia": "DZA",
+    "Argentina": "ARG", "Australia": "AUS", "Austria": "AUT",
+    "Bélgica": "BEL", "Bosnia y Herzegovina": "BIH", "Brasil": "BRA",
+    "Cabo Verde": "CPV", "Canadá": "CAN", "Catar": "QAT",
+    "Colombia": "COL", "Corea del Sur": "KOR", "Costa de Marfil": "CIV",
+    "Croacia": "HRV", "Curazao": "CUW", "Ecuador": "ECU",
+    "Egipto": "EGY", "Escocia": "SCO", "España": "ESP",
+    "Estados Unidos": "USA", "Francia": "FRA", "Ghana": "GHA",
+    "Haití": "HTI", "Inglaterra": "ENG", "Irak": "IRQ",
+    "Irán": "IRN", "Japón": "JPN", "Jordania": "JOR",
+    "Marruecos": "MAR", "México": "MEX", "Noruega": "NOR",
+    "Nueva Zelanda": "NZL", "Países Bajos": "NLD", "Panamá": "PAN",
+    "Paraguay": "PRY", "Portugal": "PRT", "RD Congo": "COD",
+    "República Checa": "CZE", "Senegal": "SEN", "Sudáfrica": "ZAF",
+    "Suecia": "SWE", "Suiza": "CHE", "Túnez": "TUN",
+    "Turquía": "TUR", "Uruguay": "URY", "Uzbekistán": "UZB",
+}
+
 # (match_id, home, away, group). 72 entradas, 1..72.
 GROUP_MATCHES = [
     (1, "MEX", "ZAF", "A"), (2, "KOR", "CZE", "A"), (3, "CAN", "BIH", "B"),
@@ -193,6 +214,13 @@ def parse_porra(xlsx_path):
 
     group_marc = {}
     knockout_marc = {}
+    # match_id → team_code. La col D (WINNER) del Excel siempre lleva el ganador
+    # literal de cada knockout (auto-rellenada cuando AC != AD; manual cuando
+    # AC == AD por penaltis). Usamos D como fuente de verdad para evitar tener
+    # que replicar la lógica interna de resolución de slots del Excel, que
+    # puede divergir de la mía cuando el bracket del usuario es inconsistente
+    # (ADR 0003: bracket rígido).
+    knockout_winner_override = {}
     for cells in wc.values():
         ac = cells.get("AC")
         ad = cells.get("AD")
@@ -211,12 +239,23 @@ def parse_porra(xlsx_path):
             mid = int(j)
             if 73 <= mid <= 104:
                 gl, gv = int(ac), int(ad)
-                if gl == gv:
-                    raise RuntimeError(
-                        f"Knockout {mid}: predicción {gl}-{gv} sin ganador "
-                        f"(los empates no valen en eliminatorias)"
-                    )
                 knockout_marc[mid] = (gl, gv)
+                winner_name = cells.get("D")
+                if winner_name:
+                    code = TEAM_NAME_ES.get(winner_name.strip())
+                    if code:
+                        knockout_winner_override[mid] = code
+                    else:
+                        print(
+                            f"⚠️  Knockout {mid}: col D='{winner_name}' no es nombre "
+                            f"de equipo conocido; usando resolución por slot+goles.",
+                            file=sys.stderr,
+                        )
+                elif gl == gv:
+                    raise RuntimeError(
+                        f"Knockout {mid}: predicción {gl}-{gv} sin ganador y "
+                        f"col D (WINNER) vacía"
+                    )
 
     missing_groups = sorted(set(range(1, 73)) - set(group_marc))
     if missing_groups:
@@ -238,6 +277,7 @@ def parse_porra(xlsx_path):
     return {
         "group_marcadores": group_marc,
         "knockout_marcadores": knockout_marc,
+        "knockout_winner_override": knockout_winner_override,
         "boots": [b.strip() for b in boots],
         "balls": [b.strip() for b in balls],
     }
@@ -311,10 +351,12 @@ WINNER_REF = re.compile(r"^W(\d+)$")
 LOSER_REF = re.compile(r"^L(\d+)$")
 
 
-def resolve_bracket(group_standings, best_thirds, knockout_marc, mapping):
+def resolve_bracket(group_standings, best_thirds, knockout_marc, winner_overrides, mapping):
     """Resuelve cada cruce de 73..104 al team_code ganador.
 
-    Devuelve {match_id: winner_team_code}. Réplica de resolveBracket en TS.
+    Devuelve {match_id: winner_team_code}. Réplica de resolveBracket en TS, con
+    soporte para `winner_overrides` (knockouts con empate en regulación: el
+    ganador viene de la columna WINNER del Excel, no se infiere de AC/AD).
     """
     standing_map = {}  # (group, pos) → team_code
     for g, teams in group_standings.items():
@@ -360,13 +402,22 @@ def resolve_bracket(group_standings, best_thirds, knockout_marc, mapping):
                 return away_team
             if winner == away_team:
                 return home_team
-            raise RuntimeError(
-                f"L{rid}: ganador {winner} no es ni home {home_team} ni away {away_team}"
+            # El ganador es un override que no coincide con ninguno de los dos
+            # lados resueltos (bracket inconsistente). No hay perdedor bien
+            # definido — usamos el away por convención y registramos el caso.
+            print(
+                f"⚠️  L{rid}: ganador {winner} no coincide con home={home_team} ni away={away_team}; "
+                f"asumiendo away como perdedor.",
+                file=sys.stderr,
             )
+            return away_team
         raise RuntimeError(f"Slot ref no soportado: {ref}")
 
     winners = {}
     for mid, home_slot, away_slot, _ in KNOCKOUT_MATCHES:
+        if mid in winner_overrides:
+            winners[mid] = winner_overrides[mid]
+            continue
         home_team = resolve_slot(home_slot, mid, winners)
         away_team = resolve_slot(away_slot, mid, winners)
         gl, gv = knockout_marc[mid]
@@ -534,7 +585,13 @@ def main():
     tables = compute_group_tables(porra["group_marcadores"])
     standings = derive_standings(tables)
     best_thirds = derive_best_thirds(tables)
-    winners = resolve_bracket(standings, best_thirds, porra["knockout_marcadores"], mapping)
+    winners = resolve_bracket(
+        standings,
+        best_thirds,
+        porra["knockout_marcadores"],
+        porra["knockout_winner_override"],
+        mapping,
+    )
     podium = deduce_podium(winners)
 
     sql = emit_sql(
