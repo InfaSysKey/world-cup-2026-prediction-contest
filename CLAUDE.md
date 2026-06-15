@@ -264,7 +264,8 @@ APP_URL=http://localhost:3000
 COOKIE_SECRET=...   # 32 bytes random, base64
 
 # Database
-DATABASE_URL=postgres://porra:porra@localhost:5432/porra
+POSTGRES_PASSWORD=...   # openssl rand -base64 24
+DATABASE_URL=postgres://porra:${POSTGRES_PASSWORD}@localhost:5432/porra
 
 # Bootstrap
 ADMIN_BOOTSTRAP_EMAIL=...    # solo se usa una vez para crear el admin inicial
