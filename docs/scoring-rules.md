@@ -2,7 +2,7 @@
 
 Este documento describe **todas las predicciones** que puede hacer un jugador, **cuándo se bloquean**, **cómo se puntúan** y los **criterios de desempate** del ranking general.
 
-Es la referencia única para el motor de puntuación (`scoring engine`) y para el formulario de porra. Cualquier cambio aquí implica recálculo retroactivo de la tabla.
+Es la referencia única para el motor de puntuación (`scoring engine`) y para el formulario de porra. **La fuente canónica de la puntuación es la pestaña de "Reglas" del Excel del organizador** (compartido el 15-jun-2026); este documento la transcribe a v2.0 (ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`). Cualquier cambio aquí implica recálculo retroactivo de la tabla.
 
 ---
 
@@ -19,7 +19,7 @@ Es la referencia única para el motor de puntuación (`scoring engine`) y para e
 
 ## 2. Predicciones que hace el jugador
 
-El jugador completa la porra **antes del pitido inicial del primer partido del torneo** (11 jun 2026, 19:00 hora España). Una vez bloqueada, no se puede modificar nada que ya esté bloqueado.
+El jugador completa la porra **antes del pitido inicial del primer partido del torneo** (11 jun 2026, 17:00 UTC). Una vez bloqueada, no se puede modificar nada que ya esté bloqueado.
 
 ### 2.1 Fase de grupos (72 partidos)
 
@@ -31,26 +31,28 @@ Por cada uno de los 12 grupos, el jugador predice el **orden final** de los 4 eq
 
 ### 2.3 Desempates de grupo (hasta 6 por grupo)
 
-Si la predicción de fase de grupos deja a dos o más equipos del mismo grupo **empatados según los criterios de clasificación** (puntos → diferencia de goles → goles a favor), el jugador define manualmente el orden de desempate. El Excel permite hasta 6 desempates por grupo (Empate1L/V, Empate2L/V… Empate6L/V).
+Si la predicción de fase de grupos deja a dos o más equipos del mismo grupo **empatados según los criterios de clasificación** (puntos → diferencia de goles → goles a favor), el jugador define manualmente el orden de desempate.
 
-> **En la app**: este paso se resuelve en el propio formulario de orden de grupo. El motor detecta el empate **solo cuando el grupo está completo** (los 6 marcadores rellenados) y **solo entre equipos iguales en puntos, diferencia de goles y goles a favor**; si la diferencia de goles o los goles a favor ya los separan, no hay nada que desempatar. Cuando sí hay empate, el formulario resalta esos equipos dentro de la lista de orden del grupo y el jugador decide su orden relativo ahí mismo (no hay un segundo control). Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.
+> **En la app**: este paso se resuelve en el propio formulario de orden de grupo. El motor detecta el empate **solo cuando el grupo está completo** (los 6 marcadores rellenados) y **solo entre equipos iguales en puntos, diferencia de goles y goles a favor**; si la diferencia de goles o los goles a favor ya los separan, no hay nada que desempatar. Cuando sí hay empate, el formulario resalta esos equipos dentro de la lista de orden del grupo y el jugador decide su orden relativo ahí mismo. Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.
 
 ### 2.4 Mejores terceros (ranking de 8)
 
 El jugador ordena los **12 terceros clasificados** y marca cuáles son, en su opinión, los **8 que pasan a 1/16**.
 
-> Esta predicción depende de la 2.2: los terceros que el jugador elija deben ser coherentes con las posiciones 3.ª predichas en cada grupo.
+> **No genera puntos propios desde v2.0**. La predicción se mantiene como input lógico para resolver el bracket del jugador (qué tercero juega contra quién en 1/16). Los aciertos sobre quién clasifica realmente a 1/16 se reflejan en §3.4 (Equipos clasificados por fase). Ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`.
 
-### 2.5 Bracket eliminatorio
+### 2.5 Bracket eliminatorio (32 cruces)
 
-Para cada eliminatoria el jugador predice el **ganador** del cruce (sin marcador):
+Para cada cruce el jugador predice **el marcador completo** (goles del local y goles del visitante en 90' + prórroga) **y el ganador del cruce** (que decide quién pasa a la siguiente ronda — por penaltis si el marcador queda empate al 120'):
 
-- **1/16 de final**: 16 ganadores
-- **1/8 de final**: 8 ganadores
-- **Cuartos**: 4 ganadores
-- **Semifinales**: 2 ganadores
-- **Final**: 1 ganador (campeón)
-- **3.º y 4.º puesto**: 1 ganador (3.º del Mundial)
+- **1/16**: 16 cruces
+- **1/8**: 8 cruces
+- **Cuartos**: 4 cruces
+- **Semis**: 2 cruces
+- **Final**: 1 cruce (campeón)
+- **3.º y 4.º puesto**: 1 cruce
+
+> El ganador es obligatorio (es la base del bracket rígido, ADR 0003) y debe coincidir con el lado mayor del marcador salvo si la predicción es empate (en cuyo caso el ganador representa quién pasa en una hipotética tanda de penaltis).
 
 ### 2.6 Cuadro de honor (podio)
 
@@ -58,7 +60,7 @@ Para cada eliminatoria el jugador predice el **ganador** del cruce (sin marcador
 - 🥈 **Subcampeón** (perdedor de la final)
 - 🥉 **3.º puesto**
 
-> Estos tres se **sugieren** automáticamente desde el bracket (ganador de la final → campeón; el otro finalista → subcampeón; ganador del 3-4 → 3.º), pero se guardan como predicciones explícitas **solo cuando el jugador los confirma o edita** en el formulario; la sugerencia no se persiste por sí sola (ver `docs/decisions/0005-podio-sugerido-no-persistido.md`). Mientras un puesto siga como sugerencia sin confirmar, el formulario lo marca como "revisar".
+> Estos tres se **sugieren** automáticamente desde el bracket (ganador de la final → campeón; el otro finalista → subcampeón; ganador del 3-4 → 3.º), pero se guardan como predicciones explícitas **solo cuando el jugador los confirma o edita** en el formulario; la sugerencia no se persiste por sí sola (ver `docs/decisions/0005-podio-sugerido-no-persistido.md`).
 
 ### 2.7 Premios individuales
 
@@ -71,15 +73,15 @@ Texto libre, con autocompletado contra un catálogo de jugadores que el admin im
 
 ## 3. Sistema de puntuación
 
+Tabla canónica del Excel del organizador (ADR 0009). En todos los partidos la regla "Diferencia/Distancia de goles con 1X2 acertado" del Excel está listada con **0 pts** y por tanto **no se implementa** (el outcome de un partido entrega 5 si exacto o 3 si solo signo 1X2; no hay puntos intermedios por diferencia).
+
 ### 3.1 Partidos de fase de grupos (por partido)
 
 | Acierto | Puntos |
 |---|---|
 | Marcador exacto (ej. predicción 2–1, real 2–1) | **5** |
-| Resultado correcto, marcador erróneo (ej. predijo 2–1, real 3–1 → ambos victoria local) | **3** |
-| Solo el número de goles de **un** equipo, fallando el 1X2 (ej. predijo 2–1, real 2–3 → se acierta el local pero gana el visitante) | **1** |
-| Empate predicho y resultado empate, marcador erróneo (ej. predijo 1–1, real 2–2) | **3** |
-| Predicción no rellenada | **−1** (puntos penalizados) |
+| Acierto del signo 1X2 con marcador no exacto (ej. predijo 2–1, real 3–1 → ambos victoria local) | **3** |
+| Resto (incluida predicción vacía) | **0** |
 
 **Acumulado máximo en fase de grupos por partidos**: 72 × 5 = **360 pts**.
 
@@ -87,87 +89,88 @@ Texto libre, con autocompletado contra un catálogo de jugadores que el admin im
 
 | Acierto | Puntos |
 |---|---|
-| Acertar 1.º del grupo | **4** |
-| Acertar 2.º del grupo | **3** |
-| Acertar 3.º del grupo | **2** |
+| Acertar 1.º del grupo | **2** |
+| Acertar 2.º del grupo | **2** |
+| Acertar 3.º del grupo | **1** |
 | Acertar 4.º del grupo | **1** |
-| Bonus: clavar el orden completo de los 4 | **+5** |
 
-**Máximo por grupo**: 4+3+2+1+5 = 15. Total 12 grupos: **180 pts**.
+**Máximo por grupo**: 2+2+1+1 = 6. Total 12 grupos: **72 pts**.
 
-### 3.3 Mejores terceros
+### 3.3 Cruces eliminatorios (por cruce)
+
+Mismo esquema que §3.1, aplicado al **marcador en 90' + prórroga** (sin penaltis).
 
 | Acierto | Puntos |
 |---|---|
-| Cada selección acertada entre los 8 mejores terceros (sin importar el orden interno) | **3** |
-| Bonus: los 8 en el orden exacto | **+5** |
+| Marcador exacto al 120' | **5** |
+| Acierto del signo 1X2 al 120' con marcador no exacto | **3** |
+| Resto | **0** |
 
-**Máximo**: 8 × 3 + 5 = **29 pts**.
+> Un cruce que termina empate al 120' y se decide por penaltis se evalúa así: el signo 1X2 es **empate** (no "gana X por penaltis"). Si el jugador predijo empate, acierta 1X2; si predijo a uno ganando, no.
 
-### 3.4 Bracket eliminatorio
+**Acumulado máximo**: 32 × 5 = **160 pts**.
 
-Los puntos aumentan con la fase. Acertar el ganador de un cruce vale lo siguiente:
+### 3.4 Equipos clasificados por fase
 
-| Fase | Puntos por acierto | Nº cruces | Máximo fase |
-|---|---|---|---|
-| 1/16 | 4 | 16 | 64 |
-| 1/8 | 6 | 8 | 48 |
-| Cuartos | 10 | 4 | 40 |
-| Semifinales | 15 | 2 | 30 |
-| 3.º/4.º puesto | 12 | 1 | 12 |
-| Final | 25 | 1 | 25 |
+Por cada equipo que el jugador predijo y que efectivamente llega a una fase, **2 pts**. Esta categoría es ortogonal al marcador del cruce: premia la quiniela del bracket, no la lectura táctica del partido.
 
-> **Importante**: el acierto se cuenta solo si el equipo predicho **realmente jugó** ese cruce y lo ganó. Si por culpa de un fallo anterior el jugador colocó en cuartos a un equipo que ya quedó eliminado en 1/16, ese cruce ya no puede puntuar (no se "regenera" el bracket del usuario al avanzar las rondas).
-> Excepción: si la app permite "rebracket" automático (recolocar al equipo que sí pasó en la siguiente ronda predicha por el usuario), se anota así en la `data-model.md`. **Decisión por defecto: NO rebracket. La predicción del usuario es rígida.**
+| Fase | Equipos que llegan | Máx. |
+|---|---|---|
+| 1/16 | 32 (24 standings 1.º/2.º + 8 mejores terceros) | 64 |
+| Octavos | 16 (ganadores de 1/16) | 32 |
+| Cuartos | 8 (ganadores de octavos) | 16 |
+| Semis | 4 (ganadores de cuartos) | 8 |
+| 3.º-4.º puesto | 2 (perdedores de semis) | 4 |
+| Final | 2 (ganadores de semis) | 4 |
 
-**Máximo bracket**: **219 pts**.
+**Máximo total**: **128 pts**.
+
+> Implementación: la lista de "equipos predichos a fase X" se deriva del estado de la porra del jugador (standings + mejores terceros para 1/16; `predictions_knockout.winner_team_code` filtrado por phase para el resto). La lista oficial sale de `actual_group_standings` + `actual_best_thirds` + `matches.real_winner_team_code`. Los puntos son `2 × |predicted ∩ actual|` por fase.
 
 ### 3.5 Cuadro de honor
 
 | Acierto | Puntos |
 |---|---|
-| Campeón | **20** |
-| Subcampeón | **12** |
-| 3.º puesto | **8** |
+| Campeón | **30** |
+| Subcampeón | **20** |
+| 3.º puesto | **10** |
 
-> Si los puntos del bracket ya incluyen el ganador de la final (25 pts) y del 3.º/4.º (12 pts), los puntos del cuadro de honor son **adicionales** (es decir, premiar nominalmente al campeón da más peso a esa predicción concreta, que es lo simbólico de la porra).
+> Estos puntos son **adicionales** a los del cruce de la final y del 3-4 (§3.3) y a los de "Equipo clasificado para final/3-4" (§3.4). Es lo simbólico del podio.
 
-**Máximo**: **40 pts**.
+**Máximo**: **60 pts**.
 
 ### 3.6 Premios individuales
 
 | Premio | Puntos |
 |---|---|
-| Bota de Oro | **15** |
-| Bota de Plata | **8** |
+| Bota de Oro | **10** |
+| Bota de Plata | **7** |
 | Bota de Bronce | **5** |
-| Balón de Oro | **12** |
-| Balón de Plata | **6** |
-| Balón de Bronce | **4** |
+| Balón de Oro | **10** |
+| Balón de Plata | **7** |
+| Balón de Bronce | **5** |
 
-**Máximo**: **50 pts**.
+**Máximo**: **44 pts**.
 
 ### 3.7 Puntuación máxima posible
 
 | Categoría | Máx. |
 |---|---|
 | Fase de grupos (marcadores) | 360 |
-| Clasificación de grupos | 180 |
-| Mejores terceros | 29 |
-| Bracket eliminatorio | 219 |
-| Cuadro de honor | 40 |
-| Premios individuales | 50 |
-| **TOTAL** | **878** |
+| Clasificación de grupos | 72 |
+| Cruces eliminatorios (marcadores) | 160 |
+| Equipos clasificados por fase | 128 |
+| Cuadro de honor | 60 |
+| Premios individuales | 44 |
+| **TOTAL** | **824** |
 
 ---
 
-## 4. Puntos penalizados (sanción por porra incompleta)
+## 4. Predicciones vacías
 
-El Excel marca explícitamente "**Puntos penalizados**" si quedan apuestas sin rellenar. Reglas en la app:
+A diferencia de versiones anteriores del reglamento, **el Excel canónico no penaliza con puntos negativos** los huecos: una predicción no rellenada vale **0 pts** en la categoría correspondiente, sin penalización adicional.
 
-- Si al cierre de inscripciones (ver §5) un jugador tiene huecos, **NO se le elimina**: se le penaliza con **−1 punto por cada predicción vacía** en las categorías 3.1 a 3.3 (fase de grupos, clasificación de grupos, mejores terceros).
-- En el bracket, el cuadro de honor y los premios individuales, la falta de predicción se traduce simplemente en **0 puntos** en ese acierto (sin penalización adicional, porque la pérdida ya es lo bastante grande).
-- El formulario debe avisar de forma muy visible "PORRA INCOMPLETA" hasta que esté 100 % rellena (replicando el comportamiento del Excel).
+El formulario debe seguir avisando de forma muy visible "PORRA INCOMPLETA" hasta que esté 100 % rellena (replicando el comportamiento del Excel y para evitar pérdidas evitables de puntos).
 
 ---
 
@@ -182,8 +185,7 @@ El Excel marca explícitamente "**Puntos penalizados**" si quedan apuestas sin r
 | Cuadro de honor | Pitido inicial de la **final** |
 | Bota / Balón de Oro/Plata/Bronce | Pitido inicial de la **final** |
 
-> **Excepción de la versión MVP**: para simplificar, la app puede bloquear **toda la porra a la vez al pitido inicial del partido inaugural (11 jun, México–Sudáfrica)** y permitir modificaciones hasta entonces. Esto es lo que hace el Excel original.
-> **Recomendación**: empezar con bloqueo global (MVP) y migrar al bloqueo por bloques en una segunda iteración.
+> **Excepción de la versión MVP** (activa): la app bloquea **toda la porra a la vez al pitido inicial del partido inaugural (11 jun 2026, 17:00 UTC, México–Sudáfrica)**, replicando el comportamiento del Excel original. Lock global activo desde esa fecha y vigente durante toda la v2.0.
 
 Tras el bloqueo, la fila de esa predicción queda **read-only** en la UI, con marca de agua "BLOQUEADA".
 
@@ -197,7 +199,8 @@ Los partidos no jugados se tratan como **anulados**: ninguna predicción de ese 
 
 ### 6.2 Prórroga y penaltis (eliminatorias)
 
-En las eliminatorias **solo cuenta el resultado final** (incluyendo prórroga y penaltis). Si el usuario predijo "gana X", y X gana en penaltis, **acierta**.
+- **Marcador exacto / signo 1X2 (§3.3)**: se evalúan sobre el marcador al final del 90' + **prórroga**. Los penaltis **no** modifican el marcador para el cómputo de §3.3.
+- **Ganador del cruce / "Equipo clasificado para X" (§3.4)**: el ganador real es el que pasa a la siguiente ronda — incluyendo decisión por penaltis. Es el equipo que el admin registra en `matches.real_winner_team_code`.
 
 ### 6.3 Goles de plata, oro o reglas raras
 
@@ -209,7 +212,7 @@ En la fase de grupos los empates están permitidos en cualquier partido (es lo h
 
 ### 6.5 Predicción con empate en eliminatorias
 
-En el bracket el usuario predice **el ganador**, no el marcador, así que no hay empates posibles en su predicción.
+En el bracket el usuario predice un marcador completo: puede predecir empate al 120' y a la vez marcar a un equipo como ganador del cruce (quien pasaría por penaltis). Esto es coherente con §3.3 (el empate cuenta como signo 1X2 si el partido real acaba empate al 120') y con §3.4 (el ganador del cruce cuenta para "Equipo clasificado para X").
 
 ### 6.6 Jugadores que dejan de existir (Bota/Balón)
 
@@ -225,12 +228,12 @@ Si dos jugadores empatan en goles para la Bota de Oro, **FIFA aplica criterio de
 
 El ranking general se ordena por **puntos totales descendentes**. Si dos o más jugadores empatan a puntos al final del Mundial, se aplican estos criterios **en orden**:
 
-1. Más **marcadores exactos** acertados en fase de grupos.
-2. Más **ganadores de cruce** acertados en eliminatorias.
-3. Si acertó al **campeón**.
-4. Si acertó al **subcampeón**.
-5. Si acertó al **3.º puesto**.
-6. Más **clasificaciones de grupo** clavadas (los 4 en orden).
+1. Más **marcadores exactos** acertados en fase de grupos (§3.1, fila exacto).
+2. Más **marcadores exactos** acertados en eliminatorias (§3.3, fila exacto).
+3. Más equipos acertados en "Equipos clasificados por fase" (§3.4, total).
+4. Si acertó al **campeón**.
+5. Si acertó al **subcampeón**.
+6. Si acertó al **3.º puesto**.
 7. Más **premios individuales** acertados (cualquiera de los 6).
 8. Sorteo público (último recurso, lo organiza el admin con `random.org`).
 
@@ -248,22 +251,22 @@ El ranking general se ordena por **puntos totales descendentes**. Si dos o más 
 
 El motor (`scoreEngine.calculateUserScore(userId)`) debe:
 
-1. Cargar todas las predicciones del usuario.
-2. Cargar todos los resultados oficiales registrados por el admin (`matches.goles_local`, `matches.goles_visitante`, `matches.ganador`, ranking real de grupos, terceros oficiales, podio real, premios oficiales).
-3. Para cada categoría 3.1–3.6, aplicar la tabla correspondiente.
-4. Para predicciones vacías, aplicar §4 (penalización).
-5. Guardar el desglose en `scores` (una fila por categoría + usuario), no solo el total.
-6. Recalcular el ranking general aplicando §7 si hay empates.
-7. Disparar recálculo **idempotente** cada vez que el admin actualiza un resultado.
+1. Cargar todas las predicciones del usuario (5 tablas `predictions_*`).
+2. Cargar todos los resultados oficiales (`matches.real_goles_*`, `matches.real_winner_team_code`, `actual_group_standings`, `actual_best_thirds`, `actual_awards`).
+3. Computar las **6 categorías** de v2.0 (`group_matches`, `group_standings`, `bracket`, `team_advancement`, `podium`, `awards`).
+4. Guardar el desglose en `scores` (una fila por categoría + usuario), no solo el total.
+5. Recalcular el ranking general aplicando §7 si hay empates.
+6. Disparar recálculo **idempotente** cada vez que el admin actualiza un resultado.
 
 ---
 
 ## 10. Versionado de las reglas
 
-Este documento es **v1.2**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v1.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
+Este documento es **v2.0**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v2.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
 
 ### Changelog
 
-- **v1.2** (2026-06-10) — §2.3: el desempate del orden de grupo se detecta con la cadena de clasificación completa (**puntos → diferencia de goles → goles a favor**), no solo por puntos, y únicamente cuando el grupo está completo. No cambia ningún punto otorgado por el motor; solo afecta a qué sub-órdenes pide el formulario al jugador. Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.
-- **v1.1** (2026-06-09) — §3.1: se corrige el ejemplo de la fila `one_goal`, que era incoherente con el de la fila `result` (ambos tenían el mismo outcome 1X2). Se fija la regla de marcadores de grupos como **basada en outcome (1X2)**: 5 exacto / 3 acierto de 1X2 / 1 acierto de los goles de un equipo fallando el 1X2 / 0 resto. Ver `docs/decisions/0006-puntuacion-grupos-basada-en-outcome.md`.
+- **v2.0** (2026-06-15) — Reescritura completa para alinear con la tabla canónica del Excel del organizador. Knockouts pasan a puntuar marcador + 1X2 (5/3/0). Nuevas posiciones de grupo 2/2/1/1 sin bonus. Nueva categoría "Equipos clasificados por fase" (2 pts × equipo, máx 128). Podio 30/20/10. Premios 10/7/5 cada terna. Se elimina la puntuación de mejores terceros y la penalización por hueco. Diferencia/distancia con 1X2 = 0 (regla desactivada en el Excel). Total máx = 824. Disparo recálculo retroactivo. Ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`.
+- **v1.2** (2026-06-10) — §2.3: el desempate del orden de grupo se detecta con la cadena puntos → diferencia de goles → goles a favor. Solo afecta a qué sub-órdenes pide el formulario, no a la puntuación. Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.
+- **v1.1** (2026-06-09) — §3.1: regla de marcadores de grupos basada en outcome (1X2) tras detectar incoherencia entre ejemplos. Ver `docs/decisions/0006-puntuacion-grupos-basada-en-outcome.md`.
 - **v1.0** — versión inicial.
