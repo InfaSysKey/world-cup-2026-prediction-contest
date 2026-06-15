@@ -1,11 +1,12 @@
-// Puntuación del cuadro de honor / podio (scoring-rules.md §3.5). Función PURA:
-// entra el podio predicho por el usuario {champion, runner_up, third} (cada uno
-// teamCode o null si vacío) y el podio oficial, sale un PodiumScore por puesto.
-// Carga de BD y persistencia: en el orquestador (lib/scoring/index.ts).
+// Puntuación del cuadro de honor / podio (scoring-rules.md §3.5, v2.0).
+// Función PURA: entra el podio predicho por el usuario {champion, runner_up,
+// third} (cada uno teamCode o null si vacío) y el podio oficial, sale un
+// PodiumScore por puesto. Carga de BD y persistencia: en el orquestador
+// (lib/scoring/index.ts).
 //
-// champion=20, runner_up=12, third=8. Son ADICIONALES a los puntos del bracket
-// (§3.5): un acierto en la final suma sus 25 (bracket) Y los 20 del campeón.
-// Puesto vacío o fallado → 0, sin penalización (§4 no aplica al podio). Máx 40.
+// champion=30, runner_up=20, third=10 (ADR 0009). Son ADICIONALES a los puntos
+// del bracket (§3.3, 5/3/0 por marcador) y a team_advancement (§3.4, 2 pts ×
+// equipo). Puesto vacío o fallado → 0, sin penalización. Máximo 60.
 
 import { PODIUM_POINTS } from './points';
 

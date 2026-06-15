@@ -58,45 +58,47 @@ El esperado se calcula **a mano** leyendo la doc, y se escribe literal en el fix
 
 Cada función de scoring debe cubrir AL MENOS estos casos (derivados de `scoring-rules.md`):
 
-### group-matches (§3.1)
+### group-matches (§3.1) — v2.0
 - ✅ Marcador exacto → 5 pts, reason 'exact'.
-- ✅ Resultado correcto (mismo ganador), marcador erróneo → 3 pts, reason 'result'.
+- ✅ Acierto del signo 1X2 (mismo ganador o empate), marcador no exacto → 3 pts, reason 'result'.
 - ✅ Empate predicho + empate real, marcador distinto (1-1 vs 2-2) → 3 pts, reason 'result'.
-- ✅ Solo aciertas goles de UN equipo (2-1 vs 2-0) → 1 pt, reason 'one_goal'.
-- ✅ Fallo total (2-1 vs 0-3) → 0 pts, reason 'wrong'.
-- ✅ Predicción vacía → -1 pt (penalización §4), reason 'empty'.
-- ✅ Partido cancelado (§6.1) → 0 pts, sin penalización, reason 'cancelled'.
+- ✅ Fallo de 1X2 (incluso si aciertas los goles de un equipo) → 0 pts, reason 'wrong'.
+- ✅ Predicción vacía → 0 pts (v2.0 no penaliza), reason 'empty'.
+- ✅ Partido cancelado (§6.1) → 0 pts, reason 'cancelled'.
 
-### group-standings (§3.2)
-- ✅ Acertar 1.º → 4 pts; 2.º → 3; 3.º → 2; 4.º → 1.
-- ✅ Orden completo de los 4 clavado → +5 bonus (total 15 en ese grupo).
-- ✅ Orden parcial (2 de 4 bien) → suma solo los aciertos, sin bonus.
-- ✅ Posición vacía → penalización §4 por hueco.
+### group-standings (§3.2) — v2.0
+- ✅ Acertar 1.º → 2 pts; 2.º → 2; 3.º → 1; 4.º → 1.
+- ✅ Sin bonus por clavar el orden completo (el Excel no lo lista). Máximo por grupo = 6.
+- ✅ Orden parcial: suma solo los aciertos.
+- ✅ Posición vacía → 0 pts (v2.0 no penaliza), se reporta emptyPositions para el banner.
 
-### best-thirds (§3.3)
-- ✅ Cada tercero acertado (sin importar orden interno) → 3 pts.
-- ✅ Los 8 en orden exacto → +5 bonus (total 29).
-- ✅ 5 de 8 aciertos sin orden → 15 pts, sin bonus.
-- ✅ Selección vacía → penalización §4.
+### bracket (knockout marcador, §3.3) — v2.0
+- ✅ Marcador exacto al 120' (90'+prórroga, sin penaltis) → 5 pts, reason 'exact'.
+- ✅ Acierto del signo 1X2 al 120', marcador no exacto → 3 pts, reason 'result'.
+- ✅ Empate al 120' decidido en penaltis: el 1X2 oficial es "empate", no "gana X". Si el usuario predijo empate, acierta 1X2; si predijo a uno ganando, no.
+- ✅ Fallo de 1X2 → 0 pts.
+- ✅ Predicción vacía / cruce cancelado (§6.1) → 0 pts.
 
-### bracket (§3.4)
-- ✅ Acierto por fase con sus puntos: 1/16=4, 1/8=6, cuartos=10, semi=15, 3-4=12, final=25.
-- ✅ Bracket RÍGIDO (ADR 0003): si el equipo predicho como ganador de cuartos quedó eliminado en 1/16 real, ese cruce NO puntúa (0 pts), aunque el equipo "correcto" hubiera ganado. Test explícito de esto.
-- ✅ Cruce vacío → 0 pts (sin penalización en bracket, §4).
+### team-advancement (§3.4) — v2.0
+- ✅ 2 pts × cada equipo predicho que efectivamente llega a esa fase. 6 fases (1/16, 1/8, cuartos, semi, 3-4, final).
+- ✅ Bracket RÍGIDO (ADR 0003): si el equipo predicho como ganador de 1/16 cayó antes en su grupo, no aparece en `actual['1/16']` y no puntúa. Sin rebracket. Test explícito.
+- ✅ Una fase con `actual: null` (no cerrada todavía) → 0 hits, 0 pts.
+- ✅ Predicción con duplicados → cada equipo cuenta una sola vez.
+- ✅ Máximo total = 32+16+8+4+2+2 = 64 aciertos × 2 = 128 pts.
 
-### podium (§3.5)
-- ✅ Campeón acertado → 20; subcampeón → 12; 3.º → 8.
-- ✅ Son ADICIONALES a los puntos del bracket (no se solapan). Test que verifica que acertar la final da 25 (bracket) + 20 (podio champion) = 45.
+### podium (§3.5) — v2.0
+- ✅ Campeón acertado → 30; subcampeón → 20; 3.º → 10.
+- ✅ Son ADICIONALES a los puntos del bracket y de team_advancement. Test que verifica que marcador exacto en final (5) + campeón (30) = 35.
 
-### awards (§3.6)
-- ✅ Bota oro=15, plata=8, bronce=5; balón oro=12, plata=6, bronce=4.
+### awards (§3.6) — v2.0
+- ✅ Bota oro=10, plata=7, bronce=5; balón oro=10, plata=7, bronce=5.
 - ✅ Match de nombre de jugador case-insensitive + trim + sin tildes (decisión de 4.7).
-- ✅ Jugador retirado/no participa (§6.6) → 0 pts, sin penalización.
-- ✅ Premio vacío → 0 pts (sin penalización, §4).
+- ✅ Jugador retirado/no participa (§6.6) → 0 pts.
+- ✅ Premio vacío → 0 pts.
 
-### penalties (§4)
-- ✅ Por cada predicción vacía en categorías 3.1–3.3 → -1 pt.
-- ✅ Vacíos en bracket/podio/premios → 0 pts, NO penalización adicional.
+### Sin categoría `penalties` ni `best_thirds` en v2.0
+- ❌ La penalización −1 por hueco se eliminó (ADR 0009): los vacíos valen 0 en todas las categorías.
+- ❌ Mejores terceros dejaron de generar categoría propia: la predicción del ranking se conserva como input para `resolve-bracket.ts`, sin puntos.
 
 ## Tests transversales obligatorios
 
@@ -122,9 +124,18 @@ Editar UN resultado de partido recalcula solo las categorías afectadas, no todo
 
 Dado un usuario con porra conocida + resultados oficiales conocidos, el desglose en `scores` (una fila por categoría) coincide con una tabla calculada a mano en el test. Este es el test que da confianza de que el total es correcto.
 
-### Ranking y desempates (§7)
+### Ranking y desempates (§7 v2.0)
 
-Tests de los 8 criterios de desempate en orden, con casos de empate construidos a propósito.
+Tests de los 7 criterios de desempate en orden + sorteo (§7.8):
+1. exactGroupMatches
+2. exactKnockoutMatches
+3. teamAdvancementHits
+4. championHit
+5. runnerUpHit
+6. thirdHit
+7. awardHits
+
+Casos de empate construidos a propósito; los empatados genuinos comparten rango y `needsDraw=true`.
 
 ## Anti-patterns (rechazar al revisar)
 
@@ -134,5 +145,5 @@ Tests de los 8 criterios de desempate en orden, con casos de empate construidos 
 - ❌ Número de puntos hardcodeado en el código sin constante nombrada que referencie `scoring-rules.md`.
 - ❌ Falta el test de idempotencia.
 - ❌ Falta el test de bracket rígido (es la regla más fácil de implementar mal).
-- ❌ Penalización aplicada en categorías donde §4 dice que no (bracket/podio/premios).
+- ❌ Penalización aplicada en cualquier categoría (v2.0 ya no penaliza huecos).
 - ❌ Cambiar un valor de puntos sin actualizar `scoring-rules.md` + bump de versión + ADR.
