@@ -26,6 +26,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
+      APP_URL: http://localhost:3000
       DATABASE_URL: postgres://porra:${{ secrets.CI_POSTGRES_PASSWORD }}@localhost:5432/porra
       COOKIE_SECRET: ${{ secrets.CI_COOKIE_SECRET }}
       ADMIN_BOOTSTRAP_EMAIL: admin@example.com
