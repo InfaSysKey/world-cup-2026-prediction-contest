@@ -1,26 +1,23 @@
-// Puntuación del orden de cada grupo (scoring-rules.md §3.2). Función PURA: entra
-// el orden predicho por el usuario (4 posiciones, null = posición vacía) y el
-// orden oficial del grupo, sale el desglose. Carga de BD y persistencia: en el
+// Puntuación del orden de cada grupo (scoring-rules.md §3.2, v2.0). Función PURA:
+// entra el orden predicho por el usuario (4 posiciones, null = vacía) y el orden
+// oficial del grupo, sale el desglose. Carga de BD y persistencia: en el
 // orquestador (lib/scoring/index.ts).
 //
-// Puntos por posición acertada: 1.º=4, 2.º=3, 3.º=2, 4.º=1. Bonus +5 si se clava
-// el orden completo de los 4. Máximo por grupo 15; total 12 grupos = 180 pts.
-// Las posiciones vacías NO restan aquí: se reportan en emptyPositions y el
-// orquestador las convierte en −1 cada una en la fila penalties (§4, Modelo A).
+// v2.0 canónica (ADR 0009): puntos por posición acertada 1.º=2, 2.º=2, 3.º=1,
+// 4.º=1. SIN bonus por clavar el orden completo (el Excel del organizador no lo
+// lista). Máximo por grupo = 6; total 12 grupos = 72 pts. Las posiciones vacías
+// no suman ni restan (la penalización por hueco también se elimina en v2.0).
 
-import {
-  GROUP_STANDING_EXACT_BONUS,
-  GROUP_STANDING_POSITION_POINTS,
-} from './points';
+import { GROUP_STANDING_POSITION_POINTS } from './points';
 
 export type GroupStandingScore = {
-  // Puntos por posición acertada (sin contar el bonus).
+  // Puntos por posición acertada.
   positionPoints: number;
-  // +5 si las 4 posiciones del grupo son correctas, 0 en caso contrario.
-  exactOrderBonus: number;
-  // positionPoints + exactOrderBonus (sin penalización por huecos).
+  // Igual a positionPoints (sin bonus en v2.0). Se conserva el campo por
+  // simetría con el resto de scorers y para el `detail` JSON del orquestador.
   points: number;
-  // Posiciones dejadas vacías, para la fila penalties del orquestador.
+  // Posiciones dejadas vacías. Se conserva para el `detail` y el banner
+  // "PORRA INCOMPLETA"; en v2.0 no penaliza puntos.
   emptyPositions: number;
 };
 
@@ -30,27 +27,21 @@ export function scoreGroupStanding(
 ): GroupStandingScore {
   let positionPoints = 0;
   let emptyPositions = 0;
-  let allCorrect = true;
 
   for (let i = 0; i < GROUP_STANDING_POSITION_POINTS.length; i += 1) {
     const pick = predicted[i] ?? null;
     if (pick === null) {
       emptyPositions += 1;
-      allCorrect = false;
       continue;
     }
     if (pick === official[i]) {
       positionPoints += GROUP_STANDING_POSITION_POINTS[i];
-    } else {
-      allCorrect = false;
     }
   }
 
-  const exactOrderBonus = allCorrect ? GROUP_STANDING_EXACT_BONUS : 0;
   return {
     positionPoints,
-    exactOrderBonus,
-    points: positionPoints + exactOrderBonus,
+    points: positionPoints,
     emptyPositions,
   };
 }

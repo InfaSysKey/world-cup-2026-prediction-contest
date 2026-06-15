@@ -1,23 +1,21 @@
-// Puntuación de los marcadores de fase de grupos (scoring-rules.md §3.1).
+// Puntuación de los marcadores de fase de grupos (scoring-rules.md §3.1, v2.0).
 // Función PURA: entra la predicción del usuario (o null si la dejó vacía) y el
 // resultado oficial, sale { points, reason }. La persistencia y la carga de BD
 // las hace el orquestador (lib/scoring/index.ts).
 //
-// Regla por outcome 1X2 (ADR 0006):
+// Regla canónica del Excel (ADR 0009):
 //   - marcador exacto                              → 5  (exact)
-//   - aciertas el 1X2 (mismo ganador o empate)     → 3  (result)
-//   - fallas el 1X2 pero aciertas los goles de un
-//     equipo                                       → 1  (one_goal)
-//   - fallo total                                  → 0  (wrong)
-//   - predicción vacía                             → -1 (empty, penalización §4)
-//   - partido cancelado/anulado (§6.1)             → 0  (cancelled), sin penalizar
+//   - aciertas el signo 1X2 (mismo ganador o
+//     empate), marcador no exacto                  → 3  (result)
+//   - resto                                        → 0  (wrong)
+//   - predicción vacía                             → 0  (empty, sin penalización)
+//   - partido cancelado/anulado (§6.1)             → 0  (cancelled)
 
-import { EMPTY_PREDICTION_PENALTY, GROUP_MATCH_POINTS } from './points';
+import { GROUP_MATCH_POINTS } from './points';
 
 export type GroupMatchReason =
   | 'exact'
   | 'result'
-  | 'one_goal'
   | 'wrong'
   | 'empty'
   | 'cancelled';
@@ -30,7 +28,7 @@ export type GroupMatchPrediction = {
 export type GroupMatchOfficial = {
   golesLocal: number;
   golesVisitante: number;
-  // Partido anulado por retirada de un equipo (§6.1): no suma ni resta.
+  // Partido anulado por retirada de un equipo (§6.1): no suma.
   cancelled: boolean;
 };
 
@@ -51,7 +49,7 @@ export function scoreGroupMatch(
     return { points: 0, reason: 'cancelled' };
   }
   if (prediction === null) {
-    return { points: EMPTY_PREDICTION_PENALTY, reason: 'empty' };
+    return { points: 0, reason: 'empty' };
   }
 
   const sameLocal = prediction.golesLocal === official.golesLocal;
@@ -65,9 +63,6 @@ export function scoreGroupMatch(
     outcome(official.golesLocal, official.golesVisitante)
   ) {
     return { points: GROUP_MATCH_POINTS.result, reason: 'result' };
-  }
-  if (sameLocal || sameVisitante) {
-    return { points: GROUP_MATCH_POINTS.oneGoal, reason: 'one_goal' };
   }
   return { points: GROUP_MATCH_POINTS.wrong, reason: 'wrong' };
 }

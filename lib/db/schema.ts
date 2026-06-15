@@ -55,14 +55,17 @@ export const AWARD_KINDS = [
 ] as const;
 export type AwardKind = (typeof AWARD_KINDS)[number];
 
+// 6 categorías canónicas de v2.0 (scoring-rules.md §9, ADR 0009). Se eliminaron
+// `best_thirds` (predicción se mantiene como input de bracket pero ya no genera
+// puntos propios) y `penalties` (el Excel no penaliza huecos). Se añadió
+// `team_advancement` (2 pts × equipo predicho que llega a cada fase, máx 128).
 export const SCORE_CATEGORIES = [
   'group_matches',
   'group_standings',
-  'best_thirds',
   'bracket',
+  'team_advancement',
   'podium',
   'awards',
-  'penalties',
 ] as const;
 export type ScoreCategory = (typeof SCORE_CATEGORIES)[number];
 

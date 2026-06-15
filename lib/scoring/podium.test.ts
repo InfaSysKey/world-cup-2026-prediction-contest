@@ -4,9 +4,9 @@ import { podiumCases } from './__fixtures__/podium';
 import { scoreKnockoutMatch } from './knockout';
 import { scorePodium } from './podium';
 
-// Puntuación del cuadro de honor (scoring-rules.md §3.5). Función PURA: entra el
-// podio predicho {champion, runner_up, third} y el oficial, sale un PodiumScore
-// por puesto. champion=20, runner_up=12, third=8; ADICIONALES a los del bracket.
+// Puntuación del cuadro de honor (scoring-rules.md §3.5, v2.0). champion=30,
+// runner_up=20, third=10; son ADICIONALES a los puntos del bracket y de
+// team_advancement.
 
 describe('scorePodium (§3.5)', () => {
   for (const c of podiumCases) {
@@ -15,28 +15,27 @@ describe('scorePodium (§3.5)', () => {
     });
   }
 
-  it('el máximo del podio es 40 (20 + 12 + 8)', () => {
+  it('el máximo del podio es 60 (30 + 20 + 10)', () => {
     const total = scorePodium(
       { champion: 'ARG', runner_up: 'FRA', third: 'CRO' },
       { champion: 'ARG', runner_up: 'FRA', third: 'CRO' },
     ).reduce((sum, s) => sum + s.points, 0);
-    expect(total).toBe(40);
+    expect(total).toBe(60);
   });
 
-  // No-solapamiento (§3.5): los puntos del podio se SUMAN a los del bracket, no
-  // los reemplazan. Acertar al campeón en la final del bracket (25) y como
-  // campeón del podio (20) da 45 en total.
-  it('acertar la final (bracket 25) + campeón (podio 20) suma 45, sin solaparse', () => {
-    const bracketFinal = scoreKnockoutMatch('ARG', {
-      phase: 'final',
-      realWinnerTeamCode: 'ARG',
-      cancelled: false,
-    });
+  // No-solapamiento: los puntos del podio se SUMAN a los del marcador del cruce
+  // y a los de team_advancement. Acertar el marcador exacto de la final (bracket
+  // 5 en v2.0) + acertar al campeón (podio 30) = 35.
+  it('marcador exacto en final (5) + campeón (30) = 35, sin solaparse', () => {
+    const bracketFinal = scoreKnockoutMatch(
+      { golesLocal: 3, golesVisitante: 0 },
+      { golesLocal: 3, golesVisitante: 0, cancelled: false },
+    );
     const podioChampion = scorePodium(
       { champion: 'ARG', runner_up: null, third: null },
       { champion: 'ARG', runner_up: 'FRA', third: 'CRO' },
     ).find((s) => s.kind === 'champion');
 
-    expect(bracketFinal.points + (podioChampion?.points ?? 0)).toBe(45);
+    expect(bracketFinal.points + (podioChampion?.points ?? 0)).toBe(35);
   });
 });

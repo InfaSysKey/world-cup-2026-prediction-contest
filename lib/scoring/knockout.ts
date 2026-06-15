@@ -1,43 +1,74 @@
-// Puntuación del bracket eliminatorio (scoring-rules.md §3.4). Función PURA: entra
-// el ganador que el usuario predijo para un cruce (o null si lo dejó vacío) y el
-// oficial del cruce (fase + ganador real + cancelado), sale { points, hit }. La
-// carga de BD y la persistencia las hace el orquestador (lib/scoring/index.ts).
+// Puntuación del marcador de los cruces eliminatorios (scoring-rules.md §3.3,
+// v2.0). Función PURA: entra la predicción del marcador del usuario (o null si
+// la dejó vacía) y el resultado oficial al 120' (90'+prórroga, sin penaltis),
+// sale { points, reason }. La carga de BD y la persistencia las hace el
+// orquestador (lib/scoring/index.ts).
 //
-// Puntos por acertar el ganador: 1/16→4, 1/8→6, cuartos→10, semi→15, 3-4→12,
-// final→25. Máx 219. Bracket RÍGIDO (ADR 0003): el acierto se cuenta solo si el
-// equipo predicho es el que realmente ganó ESE cruce. Si por un fallo anterior el
-// usuario colocó aquí a un equipo ya eliminado, el ganador real del cruce no
-// coincidirá con su pick y el cruce no puntúa (no se "regenera" el bracket).
-// Cruce vacío o anulado (§6.1) → 0, sin penalización (§4 no aplica al bracket).
+// Regla canónica del Excel (ADR 0009):
+//   - marcador exacto al 120'                      → 5  (exact)
+//   - signo 1X2 acertado al 120', marcador no
+//     exacto                                       → 3  (result)
+//   - resto                                        → 0  (wrong)
+//   - predicción vacía                             → 0  (empty, sin penalización)
+//   - cruce cancelado (§6.1)                       → 0  (cancelled)
+//
+// El acierto del ganador del cruce (quien pasa a la siguiente ronda, decidido
+// por penaltis si fuera necesario) NO se mide aquí — vive en la categoría
+// `team_advancement` (§3.4).
 
-import type { Phase } from '@/lib/db';
+import { KNOCKOUT_MATCH_POINTS } from './points';
 
-import { KNOCKOUT_PHASE_POINTS } from './points';
+export type KnockoutMatchReason =
+  | 'exact'
+  | 'result'
+  | 'wrong'
+  | 'empty'
+  | 'cancelled';
 
-export type KnockoutPhase = Exclude<Phase, 'grupos'>;
+export type KnockoutMatchPrediction = {
+  golesLocal: number;
+  golesVisitante: number;
+};
 
-export type KnockoutOfficial = {
-  phase: KnockoutPhase;
-  // Equipo que realmente ganó este cruce.
-  realWinnerTeamCode: string;
+export type KnockoutMatchOfficial = {
+  // Goles al final del 90' + prórroga, sin penaltis (data-model.md §3.2).
+  golesLocal: number;
+  golesVisitante: number;
   // Cruce anulado por retirada de un equipo (§6.1).
   cancelled: boolean;
 };
 
 export type KnockoutMatchScore = {
   points: number;
-  hit: boolean;
+  reason: KnockoutMatchReason;
 };
 
+function outcome(local: number, visitante: number): -1 | 0 | 1 {
+  return Math.sign(local - visitante) as -1 | 0 | 1;
+}
+
 export function scoreKnockoutMatch(
-  pick: string | null,
-  official: KnockoutOfficial,
+  prediction: KnockoutMatchPrediction | null,
+  official: KnockoutMatchOfficial,
 ): KnockoutMatchScore {
-  if (official.cancelled || pick === null) {
-    return { points: 0, hit: false };
+  if (official.cancelled) {
+    return { points: 0, reason: 'cancelled' };
   }
-  if (pick === official.realWinnerTeamCode) {
-    return { points: KNOCKOUT_PHASE_POINTS[official.phase], hit: true };
+  if (prediction === null) {
+    return { points: 0, reason: 'empty' };
   }
-  return { points: 0, hit: false };
+
+  const sameLocal = prediction.golesLocal === official.golesLocal;
+  const sameVisitante = prediction.golesVisitante === official.golesVisitante;
+
+  if (sameLocal && sameVisitante) {
+    return { points: KNOCKOUT_MATCH_POINTS.exact, reason: 'exact' };
+  }
+  if (
+    outcome(prediction.golesLocal, prediction.golesVisitante) ===
+    outcome(official.golesLocal, official.golesVisitante)
+  ) {
+    return { points: KNOCKOUT_MATCH_POINTS.result, reason: 'result' };
+  }
+  return { points: KNOCKOUT_MATCH_POINTS.wrong, reason: 'wrong' };
 }

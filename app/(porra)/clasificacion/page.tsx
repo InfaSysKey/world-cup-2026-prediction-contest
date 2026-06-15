@@ -14,8 +14,8 @@ import { loadPreviousPositions, loadRanking } from '@/lib/db/ranking';
 import type { ScoreCategory } from '@/lib/db';
 import { rankPlayers } from '@/lib/scoring/ranking';
 
-// Columnas de puntos por categoría (data-model.md §6.1). El total es la suma de
-// las 7 filas de `scores`; las penalizaciones (§4) entran en negativo.
+// Columnas de puntos por categoría v2.0 (data-model.md §6.1, ADR 0009). El
+// total es la suma de las 6 filas de `scores`.
 const CATEGORY_COLUMNS: ReadonlyArray<{
   category: ScoreCategory;
   label: string;
@@ -23,11 +23,10 @@ const CATEGORY_COLUMNS: ReadonlyArray<{
 }> = [
   { category: 'group_matches', label: 'Gru', full: 'Marcadores de grupos' },
   { category: 'group_standings', label: 'Clf', full: 'Clasificación de grupos' },
-  { category: 'best_thirds', label: '3.os', full: 'Mejores terceros' },
-  { category: 'bracket', label: 'Brk', full: 'Bracket eliminatorio' },
+  { category: 'bracket', label: 'KO', full: 'Marcadores eliminatorias' },
+  { category: 'team_advancement', label: 'Clas', full: 'Equipos clasificados por fase' },
   { category: 'podium', label: 'Pod', full: 'Cuadro de honor' },
   { category: 'awards', label: 'Prm', full: 'Premios individuales' },
-  { category: 'penalties', label: 'Pen', full: 'Penalizaciones' },
 ];
 
 // Posiciones ganadas (positivo) o perdidas (negativo) desde el recálculo previo.

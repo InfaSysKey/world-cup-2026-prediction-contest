@@ -9,11 +9,14 @@ import {
 } from '@/lib/db';
 import { loadTeamsMap, type TeamInfo } from '@/lib/db/teams-map';
 import { scoreGroupMatch } from '@/lib/scoring/group-matches';
-import { scoreKnockoutMatch, type KnockoutPhase } from '@/lib/scoring/knockout';
+import { scoreKnockoutMatch } from '@/lib/scoring/knockout';
 
 // Calendario de los 104 partidos con el resultado oficial, MI predicción y los
-// puntos que saqué en cada uno. Lee BD y reutiliza las funciones PURAS de scoring
-// (group-matches, knockout) para los puntos por partido; no recalcula la tabla.
+// puntos que saqué en cada uno. Lee BD y reutiliza las funciones PURAS de
+// scoring (group-matches, knockout) para los puntos por partido; no recalcula
+// la tabla. Los 2 pts de "Equipo clasificado para X" (team_advancement) son
+// una categoría global y NO se reflejan aquí: solo aparecen los 0/3/5 del
+// marcador.
 
 // Equipo de un lado del partido: nombre + código de bandera. flagCode null cuando
 // el lado aún no está resuelto (slot simbólico, p. ej. "Ganador del cruce 49").
@@ -28,7 +31,9 @@ export type CalendarMatch = {
   status: string;
   home: TeamRef;
   away: TeamRef;
-  // Resultado oficial: "2 - 1" en grupos, nombre del ganador en eliminatorias.
+  // Resultado oficial mostrable: "2 - 1" en grupos; en knockouts "2 - 2
+  // (Brasil)" cuando hay marcador y ganador, o solo el ganador si todavía no
+  // hay marcador.
   officialResult: string | null;
   // Mi predicción, en el mismo formato que officialResult.
   myPrediction: string | null;
@@ -51,8 +56,7 @@ function teamRef(
   return { name: slotRef ?? '—', flagCode: null };
 }
 
-// Solo el nombre (sin bandera), para los displays de ganador en eliminatorias y
-// "mi predicción": ahí va texto plano, no la etiqueta con imagen.
+// Solo el nombre (sin bandera), para los displays de ganador.
 function teamName(
   teams: ReadonlyMap<string, TeamInfo>,
   teamCode: string,
@@ -60,8 +64,23 @@ function teamName(
   return teams.get(teamCode)?.name ?? teamCode;
 }
 
-function isKnockoutPhase(phase: Phase): phase is KnockoutPhase {
-  return phase !== 'grupos';
+function formatKnockoutDisplay(
+  teams: ReadonlyMap<string, TeamInfo>,
+  golesLocal: number | null,
+  golesVisitante: number | null,
+  winnerCode: string | null,
+): string | null {
+  const hasScore = golesLocal !== null && golesVisitante !== null;
+  const hasWinner = winnerCode !== null;
+  if (!hasScore && !hasWinner) {
+    return null;
+  }
+  const scorePart = hasScore ? `${golesLocal} - ${golesVisitante}` : null;
+  const winnerPart = hasWinner ? teamName(teams, winnerCode) : null;
+  if (scorePart && winnerPart) {
+    return `${scorePart} (${winnerPart})`;
+  }
+  return scorePart ?? winnerPart;
 }
 
 export async function loadMatchCalendar(
@@ -98,6 +117,8 @@ export async function loadMatchCalendar(
       .select({
         matchId: predictionsKnockout.matchId,
         winnerTeamCode: predictionsKnockout.winnerTeamCode,
+        golesLocal: predictionsKnockout.golesLocal,
+        golesVisitante: predictionsKnockout.golesVisitante,
       })
       .from(predictionsKnockout)
       .where(eq(predictionsKnockout.userId, userId)),
@@ -105,27 +126,42 @@ export async function loadMatchCalendar(
   ]);
 
   const gmByMatch = new Map(gmPreds.map((p) => [p.matchId, p]));
-  const koByMatch = new Map(koPreds.map((p) => [p.matchId, p.winnerTeamCode]));
+  const koByMatch = new Map(koPreds.map((p) => [p.matchId, p]));
 
   return rows.map((m): CalendarMatch => {
     const home = teamRef(teams, m.homeTeamCode, m.homeSlotRef);
     const away = teamRef(teams, m.awayTeamCode, m.awaySlotRef);
     const cancelled = m.status === 'cancelled';
 
-    if (isKnockoutPhase(m.phase)) {
-      const pick = koByMatch.get(m.id) ?? null;
-      const myPrediction = pick ? teamName(teams, pick) : null;
-      const officialResult = m.realWinnerTeamCode
-        ? teamName(teams, m.realWinnerTeamCode)
-        : null;
-      const points =
-        m.realWinnerTeamCode !== null
-          ? scoreKnockoutMatch(pick, {
-              phase: m.phase,
-              realWinnerTeamCode: m.realWinnerTeamCode,
-              cancelled,
-            }).points
+    if (m.phase !== 'grupos') {
+      const pick = koByMatch.get(m.id);
+      const predGl = pick?.golesLocal ?? null;
+      const predGv = pick?.golesVisitante ?? null;
+      const prediction =
+        predGl !== null && predGv !== null
+          ? { golesLocal: predGl, golesVisitante: predGv }
           : null;
+      const myPrediction = formatKnockoutDisplay(
+        teams,
+        predGl,
+        predGv,
+        pick?.winnerTeamCode ?? null,
+      );
+      const officialResult = formatKnockoutDisplay(
+        teams,
+        m.realGolesLocal,
+        m.realGolesVisitante,
+        m.realWinnerTeamCode,
+      );
+      const hasOfficialMarker =
+        m.realGolesLocal !== null && m.realGolesVisitante !== null;
+      const points = hasOfficialMarker
+        ? scoreKnockoutMatch(prediction, {
+            golesLocal: m.realGolesLocal!,
+            golesVisitante: m.realGolesVisitante!,
+            cancelled,
+          }).points
+        : null;
       return {
         id: m.id,
         phase: m.phase,

@@ -6,21 +6,21 @@ import {
   type ScoringInputs,
 } from './compute';
 
-// Núcleo PURO del orquestador (lib/scoring/compute.ts). Estos tests NO tocan BD:
-// construyen un ScoringInputs conocido y comprueban el desglose por categoría
-// contra una tabla calculada A MANO, más la idempotencia de la función pura y el
-// mapa de recálculo selectivo.
+// Núcleo PURO del orquestador (lib/scoring/compute.ts) en v2.0. Estos tests NO
+// tocan BD: construyen un ScoringInputs conocido y comprueban el desglose por
+// las 6 categorías contra una tabla calculada A MANO, más la idempotencia y el
+// mapa de recálculo selectivo (ADR 0009).
 
 // Escenario con porra conocida + oficiales conocidos. Tabla calculada a mano:
-//   group_matches : m1 exacto 5; m2 fallo 0; m3 sin predicción (hueco); m4 anulado
-//                   → 5 puntos, 1 hueco.
-//   group_standings: A clavado 15; B con 1 hueco → 4+2+1 = 7 → 22, 1 hueco.
-//   best_thirds   : 7 de 8 (1 hueco) → 21, 1 hueco.
-//   bracket       : 1/16 acertado 4; final fallada 0 → 4.
-//   podium        : campeón 20 + 3.º 8 (subcampeón fallado) → 28.
-//   awards        : bota oro acertada (match tolerante) 15 → 15.
-//   penalties     : 1 + 1 + 1 = 3 huecos → −3.
-//   TOTAL         : 5 + 22 + 21 + 4 + 28 + 15 − 3 = 92.
+//   group_matches    : m1 exacto 5; m2 wrong 0; m3 sin predicción 0; m4 anulado 0
+//                      → 5 puntos.
+//   group_standings  : A clavado (2+2+1+1=6); B con 1 hueco (2+1+1=4) → 10.
+//   bracket          : 1/16 marcador exacto (3-1) → 5; final wrong → 0 → 5.
+//   team_advancement : 1/16 → 2 aciertos × 2 = 4; resto de fases sin oficial → 0
+//                      → 4 puntos.
+//   podium           : campeón 30 + 3.º 10 (subcampeón fallado) → 40.
+//   awards           : bota oro acertada (match tolerante) 10 → 10.
+//   TOTAL            : 5 + 10 + 5 + 4 + 40 + 10 = 74.
 const SCENARIO: ScoringInputs = {
   groupMatches: [
     {
@@ -60,26 +60,40 @@ const SCENARIO: ScoringInputs = {
       predicted: ['B1', null, 'B3', 'B4'],
     },
   ],
-  bestThirds: {
-    official: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8'],
-    predicted: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', null],
-  },
-  knockout: [
+  knockoutMarkers: [
     {
       matchId: 74,
       phase: '1/16',
       cancelled: false,
-      realWinnerTeamCode: 'X',
-      pick: 'X',
+      official: { golesLocal: 3, golesVisitante: 1 },
+      prediction: { golesLocal: 3, golesVisitante: 1 },
     },
     {
       matchId: 104,
       phase: 'final',
       cancelled: false,
-      realWinnerTeamCode: 'Z',
-      pick: 'Y',
+      official: { golesLocal: 2, golesVisitante: 0 },
+      prediction: { golesLocal: 1, golesVisitante: 2 },
     },
   ],
+  teamAdvancement: {
+    predicted: {
+      '1/16': ['ESP', 'ARG'],
+      '1/8': [],
+      cuartos: [],
+      semi: [],
+      '3-4': [],
+      final: [],
+    },
+    actual: {
+      '1/16': ['ESP', 'ARG'],
+      '1/8': null,
+      cuartos: null,
+      semi: null,
+      '3-4': null,
+      final: null,
+    },
+  },
   podium: {
     picks: { champion: 'C', runner_up: 'R', third: 'D' },
     official: { champion: 'C', runner_up: 'Q', third: 'D' },
@@ -110,103 +124,87 @@ function pointsByCategory(inputs: ScoringInputs): Record<string, number> {
   );
 }
 
-describe('computeScoreRows — desglose calculado a mano', () => {
+describe('computeScoreRows — desglose calculado a mano (v2.0)', () => {
   it('cada categoría coincide con la tabla a mano', () => {
     const points = pointsByCategory(SCENARIO);
     expect(points).toEqual({
       group_matches: 5,
-      group_standings: 22,
-      best_thirds: 21,
-      bracket: 4,
-      podium: 28,
-      awards: 15,
-      penalties: -3,
+      group_standings: 10,
+      bracket: 5,
+      team_advancement: 4,
+      podium: 40,
+      awards: 10,
     });
   });
 
-  it('el total (suma de las 7 filas) es 92', () => {
+  it('el total (suma de las 6 filas) es 74', () => {
     const total = computeScoreRows(SCENARIO).reduce(
       (sum, r) => sum + r.points,
       0,
     );
-    expect(total).toBe(92);
+    expect(total).toBe(74);
   });
 
-  it('la fila penalties centraliza los 3 huecos (Modelo A)', () => {
-    const penalties = computeScoreRows(SCENARIO).find(
-      (r) => r.category === 'penalties',
-    );
-    expect(penalties?.points).toBe(-3);
-    expect(penalties?.detail).toEqual({
-      groupMatchGaps: 1,
-      groupStandingGaps: 1,
-      bestThirdGaps: 1,
-    });
-  });
-
-  it('las filas de categoría no incluyen los −1 (solo positivos)', () => {
+  it('todas las filas son ≥ 0 (v2.0 no tiene penalizaciones)', () => {
     const rows = computeScoreRows(SCENARIO);
     for (const r of rows) {
-      if (r.category !== 'penalties') {
-        expect(r.points).toBeGreaterThanOrEqual(0);
-      }
+      expect(r.points).toBeGreaterThanOrEqual(0);
     }
   });
 
   it('es determinista: dos ejecuciones devuelven el mismo snapshot literal', () => {
     const expected = {
       group_matches: 5,
-      group_standings: 22,
-      best_thirds: 21,
-      bracket: 4,
-      podium: 28,
-      awards: 15,
-      penalties: -3,
+      group_standings: 10,
+      bracket: 5,
+      team_advancement: 4,
+      podium: 40,
+      awards: 10,
     };
     expect(pointsByCategory(SCENARIO)).toEqual(expected);
     expect(pointsByCategory(SCENARIO)).toEqual(expected);
   });
 
-  it('produce siempre las 7 categorías', () => {
+  it('produce siempre las 6 categorías v2.0', () => {
     const cats = computeScoreRows(SCENARIO)
       .map((r) => r.category)
       .sort();
     expect(cats).toEqual(
       [
         'awards',
-        'best_thirds',
         'bracket',
         'group_matches',
         'group_standings',
-        'penalties',
         'podium',
+        'team_advancement',
       ].sort(),
     );
   });
 });
 
-describe('affectedCategoriesFor — recálculo selectivo', () => {
+describe('affectedCategoriesFor — recálculo selectivo (v2.0)', () => {
   it('un resultado de grupos solo afecta a group_matches', () => {
     expect(affectedCategoriesFor({ type: 'group_match', matchId: 1 })).toEqual([
       'group_matches',
     ]);
   });
 
-  it('un resultado de cruce solo afecta a bracket', () => {
+  it('un resultado de cruce afecta a bracket Y team_advancement', () => {
     expect(affectedCategoriesFor({ type: 'knockout', matchId: 74 })).toEqual([
       'bracket',
+      'team_advancement',
     ]);
   });
 
-  it('la clasificación de un grupo solo afecta a group_standings', () => {
+  it('la clasificación de un grupo afecta a group_standings Y team_advancement', () => {
     expect(
       affectedCategoriesFor({ type: 'group_standings', groupLetter: 'A' }),
-    ).toEqual(['group_standings']);
+    ).toEqual(['group_standings', 'team_advancement']);
   });
 
-  it('los mejores terceros solo afectan a best_thirds', () => {
+  it('los mejores terceros oficiales afectan solo a team_advancement', () => {
     expect(affectedCategoriesFor({ type: 'best_thirds' })).toEqual([
-      'best_thirds',
+      'team_advancement',
     ]);
   });
 
@@ -217,19 +215,5 @@ describe('affectedCategoriesFor — recálculo selectivo', () => {
     expect(
       affectedCategoriesFor({ type: 'award', awardKind: 'boot_gold' }),
     ).toEqual(['awards']);
-  });
-
-  it('NINGÚN cambio de resultado recalcula penalties', () => {
-    const changes = [
-      { type: 'group_match', matchId: 1 },
-      { type: 'knockout', matchId: 74 },
-      { type: 'group_standings', groupLetter: 'A' },
-      { type: 'best_thirds' },
-      { type: 'award', awardKind: 'champion' },
-      { type: 'award', awardKind: 'ball_gold' },
-    ] as const;
-    for (const c of changes) {
-      expect(affectedCategoriesFor(c)).not.toContain('penalties');
-    }
   });
 });

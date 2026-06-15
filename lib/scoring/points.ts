@@ -1,54 +1,53 @@
-// Valores de puntos de scoring-rules.md §3 y §4. Source of truth única del motor
-// de puntuación: cualquier cambio aquí exige actualizar la doc + abrir un ADR +
-// bumpear la versión de scoring-rules.md (§10, CLAUDE.md §10.10).
+// Valores de puntos canónicos de scoring-rules.md §3 (v2.0). Source of truth única
+// del motor de puntuación: cualquier cambio aquí exige actualizar la doc, abrir un
+// ADR y bumpear scoring-rules.md (CLAUDE.md §10.10, ADR 0009).
+//
+// La regla "Diferencia/Distancia de goles con 1X2 acertado" aparece en el Excel
+// con 0 pts (regla listada pero desactivada por el organizador) y por tanto no se
+// implementa en código.
 
-// §3.1 — marcadores de fase de grupos (regla por outcome 1X2, ADR 0006).
+// §3.1 — marcadores de fase de grupos.
+//   - Marcador exacto                              → 5
+//   - Acierto del signo 1X2, marcador no exacto    → 3
+//   - Resto (vacío incluido)                       → 0
 export const GROUP_MATCH_POINTS = {
   exact: 5,
-  result: 3,
-  oneGoal: 1,
+  result: 3, // signo 1X2 acertado, marcador no exacto
   wrong: 0,
 } as const;
 
-// §3.2 — clasificación de cada grupo. Puntos por posición acertada, indexados
-// por posición-1 (1.º=4, 2.º=3, 3.º=2, 4.º=1) + bonus por clavar el orden de 4.
-export const GROUP_STANDING_POSITION_POINTS = [4, 3, 2, 1] as const;
-export const GROUP_STANDING_EXACT_BONUS = 5;
+// §3.2 — clasificación de cada grupo. Sin bonus por orden completo (el Excel
+// canónico no lo lista). Indexados por posición-1: 1.º=2, 2.º=2, 3.º=1, 4.º=1.
+// Máximo por grupo = 6; total 12 grupos = 72 pts.
+export const GROUP_STANDING_POSITION_POINTS = [2, 2, 1, 1] as const;
 
-// §3.3 — mejores terceros. 3 por cada selección acertada entre los 8 reales
-// (sin importar el orden interno) + bonus por clavar los 8 en orden exacto.
-export const BEST_THIRD_HIT_POINTS = 3;
-export const BEST_THIRDS_EXACT_BONUS = 5;
-
-// §3.4 — bracket eliminatorio. Puntos por acertar el ganador de un cruce, por
-// fase. Bracket RÍGIDO (ADR 0003): el acierto solo cuenta si el equipo predicho
-// es el que realmente ganó ESE cruce.
-export const KNOCKOUT_PHASE_POINTS = {
-  '1/16': 4,
-  '1/8': 6,
-  cuartos: 10,
-  semi: 15,
-  '3-4': 12,
-  final: 25,
+// §3.3 — cruces eliminatorios. Mismo esquema que §3.1, aplicado al marcador al
+// 120' (90'+prórroga, sin penaltis). Máximo = 32 × 5 = 160 pts.
+export const KNOCKOUT_MATCH_POINTS = {
+  exact: 5,
+  result: 3, // signo 1X2 al 120' acertado
+  wrong: 0,
 } as const;
 
-// §3.5 — cuadro de honor (podio). Puntos ADICIONALES a los del bracket (§3.5):
-// no se solapan. Máx 40.
+// §3.4 — equipos clasificados por fase. 2 pts × equipo predicho que efectivamente
+// llega a esa fase. Hay 6 fases (1/16, octavos, cuartos, semis, 3-4, final) con
+// 32+16+8+4+2+2 = 64 aciertos potenciales → máximo 128 pts.
+export const TEAM_ADVANCEMENT_POINTS_PER_TEAM = 2;
+
+// §3.5 — cuadro de honor (podio). Adicionales a los de §3.3/§3.4 (simbólico).
+// Máximo = 60 pts.
 export const PODIUM_POINTS = {
-  champion: 20,
-  runner_up: 12,
-  third: 8,
+  champion: 30,
+  runner_up: 20,
+  third: 10,
 } as const;
 
-// §3.6 — premios individuales (botas y balones). Máx 50.
+// §3.6 — premios individuales (botas y balones). Máximo = 44 pts.
 export const AWARD_POINTS = {
-  boot_gold: 15,
-  boot_silver: 8,
+  boot_gold: 10,
+  boot_silver: 7,
   boot_bronze: 5,
-  ball_gold: 12,
-  ball_silver: 6,
-  ball_bronze: 4,
+  ball_gold: 10,
+  ball_silver: 7,
+  ball_bronze: 5,
 } as const;
-
-// §4 — penalización por cada predicción vacía en las categorías 3.1–3.3.
-export const EMPTY_PREDICTION_PENALTY = -1;

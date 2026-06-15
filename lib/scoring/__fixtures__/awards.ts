@@ -1,7 +1,8 @@
-// Casos canónicos de §3.6 (premios individuales). Tripleta picks + oficial →
-// esperado, calculado a mano desde la doc. Match de nombre case-insensitive +
-// trim + sin tildes (decisión de 4.7). bota oro=15/plata=8/bronce=5,
-// balón oro=12/plata=6/bronce=4. Premio vacío o jugador que no participa → 0.
+// Casos canónicos de §3.6 (premios individuales), v2.0 del Excel (ADR 0009).
+// Tripleta picks + oficial → esperado, calculado a mano desde la doc. Match de
+// nombre case-insensitive + trim + sin tildes (decisión de 4.7). Bota
+// oro=10/plata=7/bronce=5, balón oro=10/plata=7/bronce=5. Premio vacío o
+// jugador que no participa → 0.
 
 import type { AwardOfficial, AwardPicks, AwardScore } from '../awards';
 
@@ -33,16 +34,16 @@ const EMPTY: AwardPicks = {
 
 export const awardCases: AwardCase[] = [
   {
-    name: 'los 6 premios acertados → 15+8+5+12+6+4',
+    name: 'los 6 premios acertados → 10+7+5+10+7+5',
     picks: { ...OFFICIAL },
     official: OFFICIAL,
     expected: [
-      { kind: 'boot_gold', points: 15, hit: true },
-      { kind: 'boot_silver', points: 8, hit: true },
+      { kind: 'boot_gold', points: 10, hit: true },
+      { kind: 'boot_silver', points: 7, hit: true },
       { kind: 'boot_bronze', points: 5, hit: true },
-      { kind: 'ball_gold', points: 12, hit: true },
-      { kind: 'ball_silver', points: 6, hit: true },
-      { kind: 'ball_bronze', points: 4, hit: true },
+      { kind: 'ball_gold', points: 10, hit: true },
+      { kind: 'ball_silver', points: 7, hit: true },
+      { kind: 'ball_bronze', points: 5, hit: true },
     ],
   },
   {
@@ -50,7 +51,7 @@ export const awardCases: AwardCase[] = [
     picks: { ...EMPTY, boot_gold: '  KYLIAN   MBAPPE ' },
     official: OFFICIAL,
     expected: [
-      { kind: 'boot_gold', points: 15, hit: true },
+      { kind: 'boot_gold', points: 10, hit: true },
       { kind: 'boot_silver', points: 0, hit: false },
       { kind: 'boot_bronze', points: 0, hit: false },
       { kind: 'ball_gold', points: 0, hit: false },

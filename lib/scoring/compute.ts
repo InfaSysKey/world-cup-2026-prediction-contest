@@ -1,13 +1,12 @@
-// Núcleo PURO del motor de puntuación. Recibe las predicciones del usuario y los
-// resultados oficiales ya cargados (ScoringInputs) y devuelve una fila por cada
-// categoría de `scores` (ScoreRow[]). No toca BD ni React: la carga y la
-// persistencia las hace el orquestador (index.ts).
+// Núcleo PURO del motor de puntuación v2.0 (scoring-rules.md §9). Recibe las
+// predicciones del usuario y los resultados oficiales ya cargados (ScoringInputs)
+// y devuelve una fila por cada una de las 6 categorías de `scores` (ScoreRow[]).
+// No toca BD ni React: la carga y la persistencia las hace el orquestador
+// (index.ts).
 //
-// Modelo de penalizaciones A (ADR de slice 5): las filas de categoría
-// (group_matches, group_standings, best_thirds) llevan SOLO los puntos positivos;
-// TODOS los −1 por hueco (§4) se centralizan en la fila `penalties`. Así el total
-// del usuario es la suma limpia de las 7 filas y la penalización es auditable en
-// un único sitio.
+// Categorías v2.0: group_matches, group_standings, bracket, team_advancement,
+// podium, awards. Se eliminaron `best_thirds` (predicción se mantiene como input
+// del bracket pero ya no puntúa) y `penalties` (v2.0 no penaliza huecos).
 
 import { GROUP_LETTERS, PODIUM_AWARD_KINDS } from '@/lib/constants';
 import type { ScoreCategory } from '@/lib/db';
@@ -15,14 +14,18 @@ import { SCORE_CATEGORIES } from '@/lib/db';
 
 import type { AwardOfficial, AwardPicks } from './awards';
 import { scoreAwards } from './awards';
-import { scoreBestThirds } from './best-thirds';
+import type { GroupMatchReason } from './group-matches';
 import { scoreGroupMatch } from './group-matches';
 import { scoreGroupStanding } from './group-standings';
-import type { KnockoutPhase } from './knockout';
+import type { KnockoutMatchReason } from './knockout';
 import { scoreKnockoutMatch } from './knockout';
-import { scorePenalties } from './penalties';
 import type { PodiumOfficial, PodiumPicks } from './podium';
 import { scorePodium } from './podium';
+import type {
+  TeamAdvancementInputs,
+  TeamAdvancementPhase,
+} from './team-advancement';
+import { scoreTeamAdvancement } from './team-advancement';
 
 // --- Entrada: predicciones + oficiales ya normalizados por el loader ---
 
@@ -32,7 +35,7 @@ export type ScoringInputs = {
     cancelled: boolean;
     // null = sin resultado oficial todavía.
     official: { golesLocal: number; golesVisitante: number } | null;
-    // null = el usuario no predijo este partido (hueco §4).
+    // null = el usuario no predijo este partido.
     prediction: { golesLocal: number; golesVisitante: number } | null;
   }>;
   groups: ReadonlyArray<{
@@ -42,17 +45,17 @@ export type ScoringInputs = {
     // [4]; null en las posiciones que el usuario dejó vacías.
     predicted: ReadonlyArray<string | null>;
   }>;
-  bestThirds: {
-    official: readonly string[] | null;
-    predicted: ReadonlyArray<string | null>;
-  };
-  knockout: ReadonlyArray<{
+  // Marcador predicho y oficial para cada uno de los 32 cruces. El acierto del
+  // ganador del cruce (quien pasa a la siguiente fase) se mide en
+  // `teamAdvancement`, no aquí.
+  knockoutMarkers: ReadonlyArray<{
     matchId: number;
-    phase: KnockoutPhase;
+    phase: TeamAdvancementPhase;
     cancelled: boolean;
-    realWinnerTeamCode: string | null;
-    pick: string | null;
+    official: { golesLocal: number; golesVisitante: number } | null;
+    prediction: { golesLocal: number; golesVisitante: number } | null;
   }>;
+  teamAdvancement: TeamAdvancementInputs;
   podium: { picks: PodiumPicks; official: PodiumOfficial };
   awards: { picks: AwardPicks; official: AwardOfficial };
 };
@@ -63,86 +66,80 @@ export type ScoreRow = {
   detail: Record<string, unknown>;
 };
 
-type GroupMatchReasonKey = 'exact' | 'result' | 'one_goal' | 'wrong';
+type GroupReasonCounts = Record<Exclude<GroupMatchReason, 'cancelled'>, number>;
+type KnockoutReasonCounts = Record<
+  Exclude<KnockoutMatchReason, 'cancelled'>,
+  number
+>;
 
 export function computeScoreRows(inputs: ScoringInputs): ScoreRow[] {
-  // --- §3.1 group_matches: solo puntos positivos; huecos → penalties ---
+  // --- §3.1 group_matches ---
   let groupMatchPoints = 0;
-  let groupMatchGaps = 0;
-  const reasons: Record<GroupMatchReasonKey, number> = {
+  const groupReasons: GroupReasonCounts = {
     exact: 0,
     result: 0,
-    one_goal: 0,
     wrong: 0,
+    empty: 0,
   };
   for (const m of inputs.groupMatches) {
     if (m.cancelled) {
       continue;
     }
-    if (m.prediction === null) {
-      groupMatchGaps += 1;
-      continue;
-    }
     if (m.official === null) {
+      // Sin resultado oficial: no puntúa ni cuenta como hueco; cuando llegue,
+      // se recalculará.
       continue;
     }
     const s = scoreGroupMatch(m.prediction, { ...m.official, cancelled: false });
-    if (s.reason !== 'empty' && s.reason !== 'cancelled') {
-      reasons[s.reason] += 1;
-      groupMatchPoints += s.points;
+    if (s.reason !== 'cancelled') {
+      groupReasons[s.reason] += 1;
     }
+    groupMatchPoints += s.points;
   }
 
   // --- §3.2 group_standings ---
   let groupStandingPoints = 0;
-  let groupStandingGaps = 0;
-  let exactGroups = 0;
+  let groupStandingEmpty = 0;
   for (const g of inputs.groups) {
-    groupStandingGaps += g.predicted.filter((x) => x == null).length;
+    groupStandingEmpty += g.predicted.filter((x) => x == null).length;
     if (g.official === null) {
       continue;
     }
     const s = scoreGroupStanding(g.predicted, g.official);
     groupStandingPoints += s.points;
-    if (s.exactOrderBonus > 0) {
-      exactGroups += 1;
-    }
   }
 
-  // --- §3.3 best_thirds ---
-  const bestThirdGaps = inputs.bestThirds.predicted.filter(
-    (x) => x == null,
-  ).length;
-  let bestThirdPoints = 0;
-  let bestThirdHits = 0;
-  let bestThirdBonus = 0;
-  if (inputs.bestThirds.official !== null) {
-    const s = scoreBestThirds(
-      inputs.bestThirds.predicted,
-      inputs.bestThirds.official,
-    );
-    bestThirdPoints = s.points;
-    bestThirdHits = s.hits;
-    bestThirdBonus = s.exactOrderBonus;
-  }
-
-  // --- §3.4 bracket ---
+  // --- §3.3 bracket (marcador de cruces eliminatorios) ---
   let bracketPoints = 0;
-  const hitsByPhase: Partial<Record<KnockoutPhase, number>> = {};
-  for (const k of inputs.knockout) {
-    if (k.realWinnerTeamCode === null) {
+  const knockoutReasons: KnockoutReasonCounts = {
+    exact: 0,
+    result: 0,
+    wrong: 0,
+    empty: 0,
+  };
+  const exactKnockoutByPhase: Partial<Record<TeamAdvancementPhase, number>> = {};
+  for (const k of inputs.knockoutMarkers) {
+    if (k.cancelled) {
       continue;
     }
-    const s = scoreKnockoutMatch(k.pick, {
-      phase: k.phase,
-      realWinnerTeamCode: k.realWinnerTeamCode,
-      cancelled: k.cancelled,
+    if (k.official === null) {
+      continue;
+    }
+    const s = scoreKnockoutMatch(k.prediction, {
+      ...k.official,
+      cancelled: false,
     });
+    if (s.reason !== 'cancelled') {
+      knockoutReasons[s.reason] += 1;
+    }
     bracketPoints += s.points;
-    if (s.hit) {
-      hitsByPhase[k.phase] = (hitsByPhase[k.phase] ?? 0) + 1;
+    if (s.reason === 'exact') {
+      exactKnockoutByPhase[k.phase] = (exactKnockoutByPhase[k.phase] ?? 0) + 1;
     }
   }
+
+  // --- §3.4 team_advancement (equipos clasificados por fase) ---
+  const advancement = scoreTeamAdvancement(inputs.teamAdvancement);
 
   // --- §3.5 podium ---
   const podium = scorePodium(inputs.podium.picks, inputs.podium.official);
@@ -154,33 +151,29 @@ export function computeScoreRows(inputs: ScoringInputs): ScoreRow[] {
   const awardPoints = awards.reduce((sum, s) => sum + s.points, 0);
   const awardHits = awards.filter((s) => s.hit).map((s) => s.kind);
 
-  // --- §4 penalties: centraliza los −1 de los huecos en 3.1–3.3 ---
-  const penalties = scorePenalties({
-    groupMatchGaps,
-    groupStandingGaps,
-    bestThirdGaps,
-  });
-
   return [
     {
       category: 'group_matches',
       points: groupMatchPoints,
-      detail: { reasons, gaps: groupMatchGaps },
+      detail: { reasons: groupReasons },
     },
     {
       category: 'group_standings',
       points: groupStandingPoints,
-      detail: { exactGroups, gaps: groupStandingGaps },
-    },
-    {
-      category: 'best_thirds',
-      points: bestThirdPoints,
-      detail: { hits: bestThirdHits, bonus: bestThirdBonus, gaps: bestThirdGaps },
+      detail: { emptyPositions: groupStandingEmpty },
     },
     {
       category: 'bracket',
       points: bracketPoints,
-      detail: { hitsByPhase },
+      detail: {
+        reasons: knockoutReasons,
+        exactByPhase: exactKnockoutByPhase,
+      },
+    },
+    {
+      category: 'team_advancement',
+      points: advancement.points,
+      detail: { byPhase: advancement.byPhase },
     },
     {
       category: 'podium',
@@ -191,11 +184,6 @@ export function computeScoreRows(inputs: ScoringInputs): ScoreRow[] {
       category: 'awards',
       points: awardPoints,
       detail: { hits: awardHits },
-    },
-    {
-      category: 'penalties',
-      points: penalties.points,
-      detail: { groupMatchGaps, groupStandingGaps, bestThirdGaps },
     },
   ];
 }
@@ -225,19 +213,27 @@ export type ResultChange =
   | { type: 'award'; awardKind: AllAwardKind };
 
 // Mapea un cambio de resultado a las categorías de `scores` que hay que
-// recalcular. NUNCA incluye `penalties`: las penalizaciones dependen solo de qué
-// predicciones quedaron vacías (congeladas tras el bloqueo), no de los
-// resultados, así que un cambio de resultado jamás las altera.
+// recalcular en v2.0.
+//   - group_match: afecta solo a 'group_matches' (5/3/0 por marcador).
+//   - knockout: afecta a 'bracket' (5/3/0 por marcador) Y a 'team_advancement'
+//     (el ganador real cambia qué equipos llegan a cada fase posterior).
+//   - group_standings: afecta a 'group_standings' (posiciones acertadas) Y a
+//     'team_advancement' (los 1.º/2.º oficiales son input de "clasificados a
+//     1/16").
+//   - best_thirds: oficial de los 8 mejores terceros → afecta solo a
+//     'team_advancement' (input de "clasificados a 1/16"). En v2.0 la categoría
+//     'best_thirds' ya no existe.
+//   - award: 'podium' o 'awards' según el kind.
 export function affectedCategoriesFor(change: ResultChange): ScoreCategory[] {
   switch (change.type) {
     case 'group_match':
       return ['group_matches'];
     case 'knockout':
-      return ['bracket'];
+      return ['bracket', 'team_advancement'];
     case 'group_standings':
-      return ['group_standings'];
+      return ['group_standings', 'team_advancement'];
     case 'best_thirds':
-      return ['best_thirds'];
+      return ['team_advancement'];
     case 'award':
       return PODIUM_KINDS.has(change.awardKind) ? ['podium'] : ['awards'];
   }
