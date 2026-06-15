@@ -21,6 +21,14 @@ type BracketPhaseProps = {
   status: AutoSaveStatus;
   onRetry: () => void;
   onPick: (matchId: number, winnerTeamCode: string) => void;
+  // Marcador predicho al 120' (90'+prórroga, sin penaltis) por cruce. Se muestra
+  // entre los botones de ganador como read-only (scoring-rules.md §3.3). Los
+  // marcadores no se editan desde esta UI: están bloqueados por el lock global
+  // y vinieron del Excel del usuario en la importación.
+  scoreByMatch?: ReadonlyMap<
+    number,
+    { golesLocal: number; golesVisitante: number }
+  >;
 };
 
 // Traduce el slot_ref simbólico a una descripción en español para los lados que
@@ -50,6 +58,7 @@ export function BracketPhase({
   status,
   onRetry,
   onPick,
+  scoreByMatch,
 }: BracketPhaseProps) {
   return (
     <div
@@ -74,41 +83,67 @@ export function BracketPhase({
       ) : null}
 
       <ul className="flex flex-col gap-2">
-        {matches.map((m) => (
-          <li
-            key={m.matchId}
-            data-testid={`bracket-match-${m.matchId}`}
-            className="flex items-stretch gap-2"
-          >
-            <SideButton
-              matchId={m.matchId}
-              position="home"
-              side={m.home}
-              picked={
-                m.pickedWinner !== null && m.pickedWinner === m.home.teamCode
-              }
-              teamLabel={teamLabel}
-              locked={locked}
-              onPick={onPick}
-            />
-            <span className="flex shrink-0 items-center px-1 text-xs font-semibold text-zinc-400">
-              vs
-            </span>
-            <SideButton
-              matchId={m.matchId}
-              position="away"
-              side={m.away}
-              picked={
-                m.pickedWinner !== null && m.pickedWinner === m.away.teamCode
-              }
-              teamLabel={teamLabel}
-              locked={locked}
-              onPick={onPick}
-            />
-          </li>
-        ))}
+        {matches.map((m) => {
+          const score = scoreByMatch?.get(m.matchId) ?? null;
+          return (
+            <li
+              key={m.matchId}
+              data-testid={`bracket-match-${m.matchId}`}
+              className="flex items-stretch gap-2"
+            >
+              <SideButton
+                matchId={m.matchId}
+                position="home"
+                side={m.home}
+                picked={
+                  m.pickedWinner !== null && m.pickedWinner === m.home.teamCode
+                }
+                teamLabel={teamLabel}
+                locked={locked}
+                onPick={onPick}
+              />
+              <ScoreOrVs matchId={m.matchId} score={score} />
+              <SideButton
+                matchId={m.matchId}
+                position="away"
+                side={m.away}
+                picked={
+                  m.pickedWinner !== null && m.pickedWinner === m.away.teamCode
+                }
+                teamLabel={teamLabel}
+                locked={locked}
+                onPick={onPick}
+              />
+            </li>
+          );
+        })}
       </ul>
     </div>
+  );
+}
+
+function ScoreOrVs({
+  matchId,
+  score,
+}: {
+  matchId: number;
+  score: { golesLocal: number; golesVisitante: number } | null;
+}) {
+  if (score === null) {
+    return (
+      <span className="flex shrink-0 items-center px-1 text-xs font-semibold text-zinc-400">
+        vs
+      </span>
+    );
+  }
+  return (
+    <span
+      data-testid={`bracket-score-${matchId}`}
+      className="flex shrink-0 items-center px-2 text-sm font-semibold tabular-nums text-ink"
+      title="Marcador al 120' (90'+prórroga, sin penaltis). No editable: viene de tu Excel."
+    >
+      {score.golesLocal} - {score.golesVisitante}
+    </span>
   );
 }
 
