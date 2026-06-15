@@ -53,6 +53,8 @@ const SAMPLE: UserPredictions = {
       userId: 9,
       matchId: 73,
       winnerTeamCode: 'BRA',
+      golesLocal: null,
+      golesVisitante: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     },

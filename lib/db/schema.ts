@@ -291,6 +291,10 @@ export const predictionsKnockout = pgTable(
     winnerTeamCode: text('winner_team_code')
       .notNull()
       .references(() => teams.code, { onDelete: 'restrict' }),
+    // Marcador predicho al 120' (90'+prórroga, sin penaltis). Nullable mientras
+    // queden registros previos a la migración 0002 (data-model.md §4.4, v1.1).
+    golesLocal: smallint('goles_local'),
+    golesVisitante: smallint('goles_visitante'),
     createdAt,
     updatedAt,
   },
@@ -298,6 +302,14 @@ export const predictionsKnockout = pgTable(
     unique('uq_pred_knockout_user_match').on(t.userId, t.matchId),
     index('idx_pred_knockout_user_id').on(t.userId),
     index('idx_pred_knockout_match_id').on(t.matchId),
+    check(
+      'chk_pred_knockout_goles_local_range',
+      sql`${t.golesLocal} is null or (${t.golesLocal} between 0 and 20)`,
+    ),
+    check(
+      'chk_pred_knockout_goles_visitante_range',
+      sql`${t.golesVisitante} is null or (${t.golesVisitante} between 0 and 20)`,
+    ),
   ],
 );
 
