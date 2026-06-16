@@ -29,6 +29,11 @@ EMAIL_FILE="${SCRIPT_DIR}/porra-emails.local"
 EXCEL_DIR="${REPO_DIR}/porras-excel"
 
 VPS_SSH="${VPS_SSH:-}"
+# Ruta del repo en el VPS (donde vive infra/scripts/backups y desde donde se
+# ejecuta backup-manual.sh). En el VPS actual el git pull cuelga del subdirectorio
+# `world-cup-2026-prediction-contest`; si tu layout es distinto, sobrescribe con:
+#   VPS_REPO_DIR=/opt/porra ./infra/scripts/v2-apply.sh
+VPS_REPO_DIR="${VPS_REPO_DIR:-/opt/porra/world-cup-2026-prediction-contest}"
 CONTAINER_DB="${PORRA_DB_CONTAINER:-porra-db}"
 CONTAINER_APP="${PORRA_APP_CONTAINER:-porra-app}"
 
@@ -68,11 +73,11 @@ done
 
 echo "==> Buscando backup reciente en el VPS"
 LATEST_BACKUP="$(ssh "$VPS_SSH" \
-  "ls -1t /opt/porra/infra/scripts/backups/*.dump 2>/dev/null | head -n1" \
+  "ls -1t ${VPS_REPO_DIR}/infra/scripts/backups/*.dump 2>/dev/null | head -n1" \
   || true)"
 if [ -z "$LATEST_BACKUP" ]; then
-  echo "Sin backups en /opt/porra/infra/scripts/backups del VPS." >&2
-  echo "Ejecuta primero: ssh ${VPS_SSH} 'cd /opt/porra && ./infra/scripts/backup-manual.sh'" >&2
+  echo "Sin backups en ${VPS_REPO_DIR}/infra/scripts/backups del VPS." >&2
+  echo "Ejecuta primero: ssh ${VPS_SSH} 'cd ${VPS_REPO_DIR} && ./infra/scripts/backup-manual.sh'" >&2
   exit 1
 fi
 echo "    Último backup: $(basename "$LATEST_BACKUP")"

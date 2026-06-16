@@ -10,7 +10,7 @@
 #   (rclone config → type=b2, account=<keyId>, key=<applicationKey>).
 set -euo pipefail
 
-SRC_DIR=/opt/porra/infra/scripts/backups
+SRC_DIR="${VPS_BACKUPS_DIR:-/opt/porra/world-cup-2026-prediction-contest/infra/scripts/backups}"
 BUCKET="${B2_BUCKET:?Falta B2_BUCKET en el entorno del host}"
 REMOTE="${RCLONE_B2_REMOTE:-b2}"
 
