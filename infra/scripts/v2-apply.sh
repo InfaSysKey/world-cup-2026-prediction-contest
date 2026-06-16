@@ -109,6 +109,22 @@ if [ "${#IMPORTS[@]}" -eq 0 ]; then
   exit 1
 fi
 
+# Validación cruzada: cada email del mapping debe existir en la tabla `users`
+# del VPS. Atrapa erratas antes del TRUNCATE en lugar de fallar a mitad del
+# re-import dejando la BD vacía.
+echo "==> Validando emails del mapping contra users del VPS"
+LOCAL_EMAILS="$(printf '%s\n' "${IMPORTS[@]}" | awk -F= '{print $NF}' | sort -u)"
+REMOTE_EMAILS="$(ssh "$VPS_SSH" \
+  "podman exec $CONTAINER_DB psql -U porra -d porra -t -A -c 'SELECT email FROM users;'" \
+  | sort -u)"
+MISSING="$(comm -23 <(echo "$LOCAL_EMAILS") <(echo "$REMOTE_EMAILS") | sed '/^$/d')"
+if [ -n "$MISSING" ]; then
+  echo "Estos emails del mapping no existen en users del VPS:" >&2
+  echo "$MISSING" | sed 's/^/  - /' >&2
+  echo "Crea esos usuarios primero, o corrige porra-emails.local." >&2
+  exit 1
+fi
+
 echo ""
 echo "Destino:           ${VPS_SSH}"
 echo "Contenedor BD:     ${CONTAINER_DB}"
