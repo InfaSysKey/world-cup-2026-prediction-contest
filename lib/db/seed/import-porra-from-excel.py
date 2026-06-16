@@ -137,6 +137,7 @@ KNOCKOUT_MATCHES = [
 ]
 
 KNOCKOUT_BY_ID = {m[0]: m for m in KNOCKOUT_MATCHES}
+KO_BY_ID_PARSE = KNOCKOUT_BY_ID  # alias usado por parse_porra
 
 
 def load_best_thirds_mapping():
@@ -214,12 +215,14 @@ def parse_porra(xlsx_path):
 
     group_marc = {}
     knockout_marc = {}
-    # match_id → team_code. La col D (WINNER) del Excel siempre lleva el ganador
-    # literal de cada knockout (auto-rellenada cuando AC != AD; manual cuando
-    # AC == AD por penaltis). Usamos D como fuente de verdad para evitar tener
-    # que replicar la lógica interna de resolución de slots del Excel, que
-    # puede divergir de la mía cuando el bracket del usuario es inconsistente
-    # (ADR 0003: bracket rígido).
+    # excel_standings recopila los standings cacheados por las fórmulas del
+    # Excel: leemos M y N (lados del cruce J=mid resueltos a nombre de equipo)
+    # de cada cruce de 1/16 cuyo slot apunta a "Xg" (X=1|2, g=grupo) o "3XXX"
+    # (mejor 3.º). El Excel puede usar criterios de desempate distintos a los
+    # míos (head-to-head vs gd/gf), así que lo que el archivo muestra al
+    # jugador es la fuente de verdad. Para los 4.ºs y los grupos cuyo 3.º no
+    # clasifica, derive_standings rellena.
+    excel_standings = {g: {} for g in "ABCDEFGHIJKL"}
     knockout_winner_override = {}
     for cells in wc.values():
         ac = cells.get("AC")
@@ -243,21 +246,58 @@ def parse_porra(xlsx_path):
                 gl, gv = int(ac), int(ad)
                 knockout_marc[mid] = (gl, gv)
                 winner_name = cells.get("D")
-                if winner_name:
-                    code = TEAM_NAME_ES.get(winner_name.strip())
-                    if code:
-                        knockout_winner_override[mid] = code
+                # Solo usamos el override de col D cuando AC == AD (empate al
+                # 120'), porque solo entonces necesitamos saber quién pasa por
+                # penaltis. Con marcador no empatado, el ganador se infiere
+                # del lado mayor del marcador. La col D del Excel canónico
+                # depende de fórmulas que en algunos archivos dan nombres
+                # incoherentes con el bracket (vimos casos de "CZE" como
+                # winner de un cruce MEX vs BIH); ignorarla en marcadores
+                # decisivos evita arrastrar ese error.
+                if gl == gv:
+                    if winner_name:
+                        code = TEAM_NAME_ES.get(winner_name.strip())
+                        if code:
+                            knockout_winner_override[mid] = code
+                        else:
+                            print(
+                                f"⚠️  Knockout {mid}: col D='{winner_name}' no es nombre "
+                                f"de equipo conocido; usando resolución por slot+goles.",
+                                file=sys.stderr,
+                            )
                     else:
-                        print(
-                            f"⚠️  Knockout {mid}: col D='{winner_name}' no es nombre "
-                            f"de equipo conocido; usando resolución por slot+goles.",
-                            file=sys.stderr,
+                        raise RuntimeError(
+                            f"Knockout {mid}: predicción {gl}-{gv} sin ganador y "
+                            f"col D (WINNER) vacía"
                         )
-                elif gl == gv:
-                    raise RuntimeError(
-                        f"Knockout {mid}: predicción {gl}-{gv} sin ganador y "
-                        f"col D (WINNER) vacía"
-                    )
+
+        # Segunda pasada: usamos M y N de los cruces de 1/16 (J=73..88) para
+        # reconstruir las posiciones 1.ª, 2.ª y mejor 3.º de cada grupo según
+        # el Excel. Solo 1/16 porque sus slots ("1G", "2A", "3XXX") apuntan
+        # directamente a standings; las rondas posteriores tienen fórmulas
+        # cacheadas con bugs ocasionales (p. ej. el 3-4 puesto duplica los
+        # finalistas en M/N).
+        j = cells.get("J")
+        if j and j.isdigit() and 73 <= int(j) <= 88:
+            mid_j = int(j)
+            home_slot = KO_BY_ID_PARSE[mid_j][1]
+            away_slot = KO_BY_ID_PARSE[mid_j][2]
+            for slot, name_key in ((home_slot, "M"), (away_slot, "N")):
+                team_name = cells.get(name_key)
+                if not team_name:
+                    continue
+                code = TEAM_NAME_ES.get(team_name.strip())
+                if not code:
+                    continue
+                m1 = re.match(r"^([12])([A-L])$", slot)
+                if m1:
+                    pos, grp = int(m1.group(1)), m1.group(2)
+                    excel_standings[grp][pos] = code
+                    continue
+                if re.match(r"^3[A-L]+$", slot):
+                    grp = TEAM_GROUP.get(code)
+                    if grp:
+                        excel_standings[grp][3] = code
 
     missing_groups = sorted(set(range(1, 73)) - set(group_marc))
     if missing_groups:
@@ -276,9 +316,13 @@ def parse_porra(xlsx_path):
             f"Faltan premios individuales: botas={boots}, balones={balls}"
         )
 
+    # Limpiamos grupos sin info del Excel
+    excel_standings = {g: d for g, d in excel_standings.items() if d}
+
     return {
         "group_marcadores": group_marc,
         "knockout_marcadores": knockout_marc,
+        "excel_standings": excel_standings,
         "knockout_winner_override": knockout_winner_override,
         "boots": [b.strip() for b in boots],
         "balls": [b.strip() for b in balls],
@@ -332,6 +376,44 @@ def compute_group_tables(group_marc):
     return out
 
 
+def merge_with_excel_standings(my_standings, excel_standings):
+    """Combina los standings derivados de marcadores con los cacheados por el
+    Excel. Cuando el Excel tiene info para una posición, prevalece (porque
+    refleja lo que el jugador ve, incluido head-to-head como desempate que mi
+    derive no implementa). Para 4.ºs y grupos sin info del Excel, mis
+    derivaciones rellenan; siempre se respeta que los 4 equipos del grupo
+    aparezcan exactamente una vez."""
+    out = {}
+    for g, my_row in my_standings.items():
+        es = excel_standings.get(g, {})
+        if not es:
+            out[g] = list(my_row)
+            continue
+        all_teams_in_group = [t for t, gr in TEAM_GROUP.items() if gr == g]
+        fixed = {pos: es[pos] for pos in (1, 2, 3) if pos in es}
+        used = set(fixed.values())
+        # Las posiciones libres se rellenan en el mismo orden que mis derivaciones,
+        # saltándonos los equipos ya colocados por el Excel.
+        rest = [t for t in my_row if t not in used]
+        row = []
+        i = 0
+        for pos in (1, 2, 3, 4):
+            if pos in fixed:
+                row.append(fixed[pos])
+            else:
+                while i < len(rest) and rest[i] in row:
+                    i += 1
+                row.append(rest[i] if i < len(rest) else None)
+                i += 1
+        # Sanidad: si quedó un None, completar con el equipo restante del grupo.
+        missing = [t for t in all_teams_in_group if t not in row]
+        for j, v in enumerate(row):
+            if v is None and missing:
+                row[j] = missing.pop(0)
+        out[g] = row
+    return out
+
+
 def derive_standings(tables):
     """{group_letter: [1º, 2º, 3º, 4º]}."""
     return {g: [r[0] for r in rows] for g, rows in tables.items()}
@@ -343,6 +425,24 @@ def derive_best_thirds(tables):
     for g, rows in tables.items():
         team, pts, gd, gf = rows[2]
         thirds.append((g, team, pts, gd, gf))
+    thirds.sort(key=lambda x: (-x[2], -x[3], -x[4], x[1]))
+    return [t[1] for t in thirds[:8]]
+
+
+def derive_best_thirds_from_standings(standings, tables):
+    """Variante que respeta los 3.º de standings (potencialmente sobreescritos
+    por excel_standings) y los ordena por sus stats reales calculadas en tables.
+    Útil cuando los 3.º del Excel no coinciden con mis derivaciones."""
+    stats_by_team = {}
+    for g, rows in tables.items():
+        for team, pts, gd, gf in rows:
+            stats_by_team[team] = (g, pts, gd, gf)
+    thirds = []
+    for g, row in standings.items():
+        team = row[2]
+        if team in stats_by_team:
+            _, pts, gd, gf = stats_by_team[team]
+            thirds.append((g, team, pts, gd, gf))
     thirds.sort(key=lambda x: (-x[2], -x[3], -x[4], x[1]))
     return [t[1] for t in thirds[:8]]
 
@@ -585,8 +685,10 @@ def main():
     porra = parse_porra(args.xlsx)
     mapping = load_best_thirds_mapping()
     tables = compute_group_tables(porra["group_marcadores"])
-    standings = derive_standings(tables)
-    best_thirds = derive_best_thirds(tables)
+    standings = merge_with_excel_standings(
+        derive_standings(tables), porra["excel_standings"]
+    )
+    best_thirds = derive_best_thirds_from_standings(standings, tables)
     winners = resolve_bracket(
         standings,
         best_thirds,
