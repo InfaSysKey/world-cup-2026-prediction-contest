@@ -13,5 +13,11 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
+# Necesarios para `npm run db:migrate` (drizzle-kit lee schema + migraciones SQL
+# en runtime) y para `npm run scores:recalc-all` y otros scripts que invocamos
+# desde el contenedor con tsx (necesitan resolver el alias `@/`).
+COPY --from=builder /app/lib ./lib
+COPY --from=builder /app/drizzle.config.ts ./drizzle.config.ts
+COPY --from=builder /app/tsconfig.json ./tsconfig.json
 EXPOSE 3000
 CMD ["npm", "start"]
