@@ -63,3 +63,7 @@ infra/scripts/porra-emails.local
 # Backups locales del VPS (formato pg_dump custom). Pueden subirse a B2 con
 # backup-b2.sh pero no entran al repo.
 infra/scripts/backups/*.dump
+
+# Volcados JSON con predicciones reales de los jugadores (datos personales).
+# Generados con lib/db/seed/dump-porras-to-json.py. No entran al repo.
+/porras-json/

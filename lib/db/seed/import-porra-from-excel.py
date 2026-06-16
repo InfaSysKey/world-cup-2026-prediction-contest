@@ -227,16 +227,18 @@ def parse_porra(xlsx_path):
         if ac is None or ad is None:
             continue
         ah = cells.get("AH")
-        j = cells.get("J")
-        # Grupos: match_id en AH (1..72), coincide con seed.
+        # En el Excel canónico AH = match_id del cruce que se ve en la fila
+        # visual (orden cronológico), tanto en grupos como en knockouts. J apunta
+        # al match_id del cruce que ocuparía esa fila si las filas estuviesen en
+        # orden seed, pero NO coincide con AC/AD: el usuario rellena los
+        # marcadores en la fila visible y físicamente se guardan en la celda
+        # adyacente al match_id AH, no al J. Usar J aquí desplazaba los
+        # marcadores 5-6 cruces en cada porra (confirmado con dump JSON).
         if ah and ah.isdigit():
             mid = int(ah)
             if 1 <= mid <= 72:
                 group_marc[mid] = (int(ac), int(ad))
                 continue
-        # Knockouts: match_id en J (73..104). AH está reshuffleado, NO usar.
-        if j and j.isdigit():
-            mid = int(j)
             if 73 <= mid <= 104:
                 gl, gv = int(ac), int(ad)
                 knockout_marc[mid] = (gl, gv)
