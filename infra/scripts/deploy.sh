@@ -16,7 +16,7 @@ IMAGE_REPO="ghcr.io/infasyskey/porra-app"
 COMPOSE="podman-compose -f infra/compose.yaml"
 HEALTH_URL="http://localhost:3000/api/health"
 
-cd /opt/porra
+cd "${VPS_REPO_DIR:-/opt/porra/world-cup-2026-prediction-contest}"
 
 # Tag de la imagen actualmente desplegada, para poder revertir. Formato del
 # ImageName: ghcr.io/infasyskey/porra-app:<tag>; nos quedamos con el <tag>.
