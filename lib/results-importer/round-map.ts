@@ -3,20 +3,22 @@
 //
 //   'grupos' | '1/16' | '1/8' | 'cuartos' | 'semi' | '3-4' | 'final'
 //
-// openfootball usa strings narrativos ("Matchday 1", "Round of 32", etc.).
-// Se modelan solo los strings que aparecen en el JSON de 2026. Si surge uno
-// no contemplado, devolvemos null y el orquestador lo loguea para que el
-// admin lo revise — no inventamos mapeo.
+// openfootball usa strings narrativos para los rounds:
+//   - Fase de grupos: "Matchday N" donde N es el DÍA del torneo (1..~18), no el
+//     número de partido del grupo. Es decir, "Matchday 8" agrupa partidos
+//     jugados el día 8 del calendario, no la 8.ª jornada de cada grupo (no
+//     existe tal cosa, son solo 3 por grupo). Por eso usamos regex.
+//   - Eliminatorias: "Round of 32", "Round of 16", "Quarter-finals",
+//     "Semi-finals", "Third-place playoff", "Final" — strings literales.
+//
+// Si surge un string no contemplado, devolvemos null y el orquestador lo
+// loguea para que el admin lo revise — no inventamos mapeo.
 
 import type { Phase } from '@/lib/db';
 
-const ROUND_TO_PHASE: Record<string, Phase> = {
-  // Fase de grupos: 3 matchdays.
-  'Matchday 1': 'grupos',
-  'Matchday 2': 'grupos',
-  'Matchday 3': 'grupos',
+const MATCHDAY_REGEX = /^Matchday\s+\d+$/i;
 
-  // Eliminatorias.
+const KNOCKOUT_ROUND_TO_PHASE: Record<string, Phase> = {
   'Round of 32': '1/16',
   'Round of 16': '1/8',
   'Quarter-finals': 'cuartos',
@@ -30,5 +32,8 @@ const ROUND_TO_PHASE: Record<string, Phase> = {
 
 export function phaseFromOpenfootballRound(round: string): Phase | null {
   const key = round.trim();
-  return ROUND_TO_PHASE[key] ?? null;
+  if (MATCHDAY_REGEX.test(key)) {
+    return 'grupos';
+  }
+  return KNOCKOUT_ROUND_TO_PHASE[key] ?? null;
 }
