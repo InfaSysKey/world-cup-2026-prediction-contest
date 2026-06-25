@@ -1,0 +1,14 @@
+# Cron del importer de resultados de openfootball.
+# Instalación en el VPS:
+#   sudo crontab -u root -e
+#   (pegar la línea siguiente, sin el "#" inicial)
+#
+# 30 3 * * * /opt/porra/world-cup-2026-prediction-contest/infra/scripts/cron-import-results.sh
+#
+# La hora elegida (03:30 UTC = 05:30 hora España en verano) busca tres cosas:
+#   - Estar después de que openfootball haya absorbido los partidos jugados
+#     el día anterior (typically commits durante la noche europea).
+#   - No solaparse con la ventana de backup nocturno del Postgres.
+#   - Lanzar a una hora previsible para que los logs tengan un patrón claro.
+#
+# Logs por día en /opt/porra/logs/importer-YYYY-MM-DD.log.

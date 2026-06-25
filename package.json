@@ -13,6 +13,7 @@
     "db:seed": "tsx lib/db/seed/index.ts",
     "admin:bootstrap": "tsx lib/db/seed/admin-bootstrap.ts",
     "scores:recalc-all": "tsx lib/db/seed/recalc-all.ts",
+    "results:import": "tsx lib/db/seed/import-results.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
