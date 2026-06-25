@@ -1,17 +1,23 @@
-// Valores de puntos canónicos de scoring-rules.md §3 (v2.0). Source of truth única
+// Valores de puntos canónicos de scoring-rules.md §3 (v2.2). Source of truth única
 // del motor de puntuación: cualquier cambio aquí exige actualizar la doc, abrir un
-// ADR y bumpear scoring-rules.md (CLAUDE.md §10.10, ADR 0009).
+// ADR y bumpear scoring-rules.md (CLAUDE.md §10.10, ADR 0009/0010/0012).
 //
 // La regla "Diferencia/Distancia de goles con 1X2 acertado" aparece en el Excel
 // con 0 pts (regla listada pero desactivada por el organizador) y por tanto no se
 // implementa en código.
+//
+// Importante (ADR 0012): el Excel canónico ACUMULA los puntos por línea. Para
+// un marcador exacto, el jugador recibe 3 (signo) + 0 (diferencia) + 5 (exacto)
+// = 8 pts. Por eso `exact` vale 8 (no 5) y `result` mantiene su valor 3 cuando
+// solo se acierta el signo. Modelamos esto como "exact O result O wrong"
+// excluyentes y dejamos que el valor 8 absorba el sumatorio.
 
 // §3.1 — marcadores de fase de grupos.
-//   - Marcador exacto                              → 5
-//   - Acierto del signo 1X2, marcador no exacto    → 3
-//   - Resto (vacío incluido)                       → 0
+//   - Marcador exacto (signo 1X2 acertado + marcador exacto)  → 3 + 5 = 8
+//   - Acierto del signo 1X2 sin marcador exacto                → 3
+//   - Signo 1X2 fallado (incluida predicción vacía)            → 0
 export const GROUP_MATCH_POINTS = {
-  exact: 5,
+  exact: 8,
   result: 3, // signo 1X2 acertado, marcador no exacto
   wrong: 0,
 } as const;
@@ -23,9 +29,9 @@ export const GROUP_MATCH_POINTS = {
 export const GROUP_STANDING_POSITION_POINTS = [2, 2, 2, 2] as const;
 
 // §3.3 — cruces eliminatorios. Mismo esquema que §3.1, aplicado al marcador al
-// 120' (90'+prórroga, sin penaltis). Máximo = 32 × 5 = 160 pts.
+// 120' (90'+prórroga, sin penaltis). Máximo = 32 × 8 = 256 pts. ADR 0012.
 export const KNOCKOUT_MATCH_POINTS = {
-  exact: 5,
+  exact: 8,
   result: 3, // signo 1X2 al 120' acertado
   wrong: 0,
 } as const;

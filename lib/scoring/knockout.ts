@@ -1,16 +1,16 @@
 // Puntuación del marcador de los cruces eliminatorios (scoring-rules.md §3.3,
-// v2.0). Función PURA: entra la predicción del marcador del usuario (o null si
+// v2.2). Función PURA: entra la predicción del marcador del usuario (o null si
 // la dejó vacía) y el resultado oficial al 120' (90'+prórroga, sin penaltis),
 // sale { points, reason }. La carga de BD y la persistencia las hace el
 // orquestador (lib/scoring/index.ts).
 //
-// Regla canónica del Excel (ADR 0009):
-//   - marcador exacto al 120'                      → 5  (exact)
+// Regla canónica del Excel (ADR 0009 + ADR 0012 que corrige el sumatorio):
+//   - marcador exacto al 120' (signo + exacto)     → 3 + 5 = 8  (exact)
 //   - signo 1X2 acertado al 120', marcador no
-//     exacto                                       → 3  (result)
-//   - resto                                        → 0  (wrong)
-//   - predicción vacía                             → 0  (empty, sin penalización)
-//   - cruce cancelado (§6.1)                       → 0  (cancelled)
+//     exacto                                       → 3          (result)
+//   - resto                                        → 0          (wrong)
+//   - predicción vacía                             → 0          (empty, sin penalización)
+//   - cruce cancelado (§6.1)                       → 0          (cancelled)
 //
 // El acierto del ganador del cruce (quien pasa a la siguiente ronda, decidido
 // por penaltis si fuera necesario) NO se mide aquí — vive en la categoría

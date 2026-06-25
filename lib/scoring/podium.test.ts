@@ -25,8 +25,8 @@ describe('scorePodium (§3.5)', () => {
 
   // No-solapamiento: los puntos del podio se SUMAN a los del marcador del cruce
   // y a los de team_advancement. Acertar el marcador exacto de la final (bracket
-  // 5 en v2.0) + acertar al campeón (podio 30) = 35.
-  it('marcador exacto en final (5) + campeón (30) = 35, sin solaparse', () => {
+  // 8 en v2.2 — signo + exacto, ADR 0012) + acertar al campeón (podio 30) = 38.
+  it('marcador exacto en final (8) + campeón (30) = 38, sin solaparse', () => {
     const bracketFinal = scoreKnockoutMatch(
       { golesLocal: 3, golesVisitante: 0 },
       { golesLocal: 3, golesVisitante: 0, cancelled: false },
@@ -36,6 +36,6 @@ describe('scorePodium (§3.5)', () => {
       { champion: 'ARG', runner_up: 'FRA', third: 'CRO' },
     ).find((s) => s.kind === 'champion');
 
-    expect(bracketFinal.points + (podioChampion?.points ?? 0)).toBe(35);
+    expect(bracketFinal.points + (podioChampion?.points ?? 0)).toBe(38);
   });
 });
