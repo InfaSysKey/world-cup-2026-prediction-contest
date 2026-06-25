@@ -2,7 +2,7 @@
 
 Este documento describe **todas las predicciones** que puede hacer un jugador, **cuándo se bloquean**, **cómo se puntúan** y los **criterios de desempate** del ranking general.
 
-Es la referencia única para el motor de puntuación (`scoring engine`) y para el formulario de porra. **La fuente canónica de la puntuación es la pestaña de "Reglas" del Excel del organizador** (compartido el 15-jun-2026); este documento la transcribe a v2.1 (ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md` y la corrección de las posiciones 3.º/4.º en `docs/decisions/0010-correccion-posiciones-grupos-3-4.md`). Cualquier cambio aquí implica recálculo retroactivo de la tabla.
+Es la referencia única para el motor de puntuación (`scoring engine`) y para el formulario de porra. **La fuente canónica de la puntuación es la pestaña de "Reglas" del Excel del organizador** (compartido el 15-jun-2026); este documento la transcribe a v2.2 (ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`, la corrección de las posiciones 3.º/4.º en `docs/decisions/0010-correccion-posiciones-grupos-3-4.md`, y la corrección del sumatorio "signo + exacto" en `docs/decisions/0012-correccion-puntos-marcador-exacto.md`). Cualquier cambio aquí implica recálculo retroactivo de la tabla.
 
 ---
 
@@ -73,17 +73,17 @@ Texto libre, con autocompletado contra un catálogo de jugadores que el admin im
 
 ## 3. Sistema de puntuación
 
-Tabla canónica del Excel del organizador (ADR 0009). En todos los partidos la regla "Diferencia/Distancia de goles con 1X2 acertado" del Excel está listada con **0 pts** y por tanto **no se implementa** (el outcome de un partido entrega 5 si exacto o 3 si solo signo 1X2; no hay puntos intermedios por diferencia).
+Tabla canónica del Excel del organizador (ADR 0009 + ADR 0012). La regla del Excel es **acumulativa por línea**: cada partido suma 3 por acertar el signo 1X2 + 0 por la "Diferencia de goles con 1X2 acertado" (línea desactivada por el organizador) + 5 adicionales por acertar el marcador exacto. Total para un marcador exacto = 3 + 0 + 5 = **8 pts**. El motor lo modela como tres reglas excluyentes (`exact = 8`, `result = 3`, `wrong = 0`) que ya absorben el sumatorio.
 
 ### 3.1 Partidos de fase de grupos (por partido)
 
 | Acierto | Puntos |
 |---|---|
-| Marcador exacto (ej. predicción 2–1, real 2–1) | **5** |
+| Marcador exacto = signo 1X2 + marcador exacto (ej. predicción 2–1, real 2–1) | **3 + 5 = 8** |
 | Acierto del signo 1X2 con marcador no exacto (ej. predijo 2–1, real 3–1 → ambos victoria local) | **3** |
 | Resto (incluida predicción vacía) | **0** |
 
-**Acumulado máximo en fase de grupos por partidos**: 72 × 5 = **360 pts**.
+**Acumulado máximo en fase de grupos por partidos**: 72 × 8 = **576 pts**.
 
 ### 3.2 Clasificación de grupo (por grupo)
 
@@ -102,13 +102,13 @@ Mismo esquema que §3.1, aplicado al **marcador en 90' + prórroga** (sin penalt
 
 | Acierto | Puntos |
 |---|---|
-| Marcador exacto al 120' | **5** |
+| Marcador exacto al 120' = signo 1X2 + marcador exacto | **3 + 5 = 8** |
 | Acierto del signo 1X2 al 120' con marcador no exacto | **3** |
 | Resto | **0** |
 
 > Un cruce que termina empate al 120' y se decide por penaltis se evalúa así: el signo 1X2 es **empate** (no "gana X por penaltis"). Si el jugador predijo empate, acierta 1X2; si predijo a uno ganando, no.
 
-**Acumulado máximo**: 32 × 5 = **160 pts**.
+**Acumulado máximo**: 32 × 8 = **256 pts**.
 
 ### 3.4 Equipos clasificados por fase
 
@@ -156,13 +156,13 @@ Por cada equipo que el jugador predijo y que efectivamente llega a una fase, **2
 
 | Categoría | Máx. |
 |---|---|
-| Fase de grupos (marcadores) | 360 |
+| Fase de grupos (marcadores) | 576 |
 | Clasificación de grupos | 96 |
-| Cruces eliminatorios (marcadores) | 160 |
+| Cruces eliminatorios (marcadores) | 256 |
 | Equipos clasificados por fase | 128 |
 | Cuadro de honor | 60 |
 | Premios individuales | 44 |
-| **TOTAL** | **848** |
+| **TOTAL** | **1160** |
 
 ---
 
@@ -262,10 +262,11 @@ El motor (`scoreEngine.calculateUserScore(userId)`) debe:
 
 ## 10. Versionado de las reglas
 
-Este documento es **v2.1**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v2.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
+Este documento es **v2.2**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v2.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
 
 ### Changelog
 
+- **v2.2** (2026-06-25) — Corrección del sumatorio de marcadores (§3.1, §3.3): el Excel canónico es **acumulativo** por línea, no excluyente. Un marcador exacto vale **3 (signo) + 0 (diferencia desactivada) + 5 (exacto) = 8 pts**, no 5. La transcripción en ADR 0009 leyó las tres líneas como mutuamente excluyentes y por eso el motor daba 5 al exacto. Esto explica que los Excels de los amigos puntúen más alto. Máximo grupos 360→**576**, knockouts 160→**256**, total general 848→**1160**. Disparo recálculo retroactivo de `group_matches` y `bracket`. Ver `docs/decisions/0012-correccion-puntos-marcador-exacto.md`.
 - **v2.1** (2026-06-25) — Corrección de las posiciones 3.º y 4.º de la clasificación de cada grupo (§3.2): pasan de 1 → 2 pts cada una. La transcripción del Excel en v2.0 (ADR 0009) había leído 2/2/1/1; la revisión directa de la pestaña "Reglas" muestra 2/2/2/2. Máximo por grupo 6→8, categoría 72→96, total general 824→**848**. Disparo recálculo retroactivo de `group_standings`. Ver `docs/decisions/0010-correccion-posiciones-grupos-3-4.md`.
 - **v2.0** (2026-06-15) — Reescritura completa para alinear con la tabla canónica del Excel del organizador. Knockouts pasan a puntuar marcador + 1X2 (5/3/0). Nuevas posiciones de grupo 2/2/1/1 sin bonus. Nueva categoría "Equipos clasificados por fase" (2 pts × equipo, máx 128). Podio 30/20/10. Premios 10/7/5 cada terna. Se elimina la puntuación de mejores terceros y la penalización por hueco. Diferencia/distancia con 1X2 = 0 (regla desactivada en el Excel). Total máx = 824. Disparo recálculo retroactivo. Ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`.
 - **v1.2** (2026-06-10) — §2.3: el desempate del orden de grupo se detecta con la cadena puntos → diferencia de goles → goles a favor. Solo afecta a qué sub-órdenes pide el formulario, no a la puntuación. Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.

@@ -1,6 +1,7 @@
-// Casos canónicos de §3.3 (marcador de cruces eliminatorios), v2.0 del Excel
-// (ADR 0009). Mismo esquema que grupos, aplicado al marcador al 120'
-// (90'+prórroga, sin penaltis): 5 (exacto) / 3 (signo 1X2) / 0 (resto).
+// Casos canónicos de §3.3 (marcador de cruces eliminatorios), v2.2 del Excel
+// (ADR 0009 + ADR 0012). Mismo esquema que grupos, aplicado al marcador al 120'
+// (90'+prórroga, sin penaltis): 8 (exacto = 3 signo + 5 exacto) / 3 (signo
+// 1X2 sin marcador exacto) / 0 (resto).
 //
 // El acierto del ganador del cruce (quien pasa, decidido por penaltis si
 // fuera necesario) NO se mide aquí — vive en team_advancement.
@@ -26,10 +27,10 @@ const exact = (
 
 export const knockoutCases: KnockoutCase[] = [
   {
-    name: 'marcador exacto al 120' + "'" + ' → 5',
+    name: 'marcador exacto al 120' + "'" + ' → 8 (3 signo + 5 exacto)',
     prediction: { golesLocal: 2, golesVisitante: 1 },
     official: { golesLocal: 2, golesVisitante: 1, cancelled: false },
-    expected: exact(5, 'exact'),
+    expected: exact(8, 'exact'),
   },
   {
     name: 'signo 1X2 acertado (victoria local), marcador no exacto → 3',
@@ -44,7 +45,7 @@ export const knockoutCases: KnockoutCase[] = [
     expected: exact(3, 'result'),
   },
   {
-    name: 'fallo de 1X2 acertando un equipo (2-1 vs 2-3) → 0 (v2.0 no premia diferencia)',
+    name: 'fallo de 1X2 acertando un equipo (2-1 vs 2-3) → 0 (v2.2 no premia diferencia)',
     prediction: { golesLocal: 2, golesVisitante: 1 },
     official: { golesLocal: 2, golesVisitante: 3, cancelled: false },
     expected: exact(0, 'wrong'),

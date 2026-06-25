@@ -1,15 +1,14 @@
-// Puntuación de los marcadores de fase de grupos (scoring-rules.md §3.1, v2.0).
+// Puntuación de los marcadores de fase de grupos (scoring-rules.md §3.1, v2.2).
 // Función PURA: entra la predicción del usuario (o null si la dejó vacía) y el
 // resultado oficial, sale { points, reason }. La persistencia y la carga de BD
 // las hace el orquestador (lib/scoring/index.ts).
 //
-// Regla canónica del Excel (ADR 0009):
-//   - marcador exacto                              → 5  (exact)
-//   - aciertas el signo 1X2 (mismo ganador o
-//     empate), marcador no exacto                  → 3  (result)
-//   - resto                                        → 0  (wrong)
-//   - predicción vacía                             → 0  (empty, sin penalización)
-//   - partido cancelado/anulado (§6.1)             → 0  (cancelled)
+// Regla canónica del Excel (ADR 0009 + ADR 0012 que corrige el sumatorio):
+//   - marcador exacto (signo 1X2 + exacto)         → 3 + 5 = 8  (exact)
+//   - signo 1X2 acertado, marcador no exacto       → 3          (result)
+//   - signo fallado                                → 0          (wrong)
+//   - predicción vacía                             → 0          (empty, sin penalización)
+//   - partido cancelado/anulado (§6.1)             → 0          (cancelled)
 
 import { GROUP_MATCH_POINTS } from './points';
 
