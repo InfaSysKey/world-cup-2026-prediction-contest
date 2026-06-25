@@ -11,16 +11,17 @@ import {
 // las 6 categorías contra una tabla calculada A MANO, más la idempotencia y el
 // mapa de recálculo selectivo (ADR 0009).
 
-// Escenario con porra conocida + oficiales conocidos. Tabla calculada a mano:
+// Escenario con porra conocida + oficiales conocidos. Tabla calculada a mano
+// (v2.1 — ADR 0010, posiciones de grupo 2/2/2/2):
 //   group_matches    : m1 exacto 5; m2 wrong 0; m3 sin predicción 0; m4 anulado 0
 //                      → 5 puntos.
-//   group_standings  : A clavado (2+2+1+1=6); B con 1 hueco (2+1+1=4) → 10.
+//   group_standings  : A clavado (2+2+2+2=8); B con 1 hueco (2+2+2=6) → 14.
 //   bracket          : 1/16 marcador exacto (3-1) → 5; final wrong → 0 → 5.
 //   team_advancement : 1/16 → 2 aciertos × 2 = 4; resto de fases sin oficial → 0
 //                      → 4 puntos.
 //   podium           : campeón 30 + 3.º 10 (subcampeón fallado) → 40.
 //   awards           : bota oro acertada (match tolerante) 10 → 10.
-//   TOTAL            : 5 + 10 + 5 + 4 + 40 + 10 = 74.
+//   TOTAL            : 5 + 14 + 5 + 4 + 40 + 10 = 78.
 const SCENARIO: ScoringInputs = {
   groupMatches: [
     {
@@ -129,7 +130,7 @@ describe('computeScoreRows — desglose calculado a mano (v2.0)', () => {
     const points = pointsByCategory(SCENARIO);
     expect(points).toEqual({
       group_matches: 5,
-      group_standings: 10,
+      group_standings: 14,
       bracket: 5,
       team_advancement: 4,
       podium: 40,
@@ -137,12 +138,12 @@ describe('computeScoreRows — desglose calculado a mano (v2.0)', () => {
     });
   });
 
-  it('el total (suma de las 6 filas) es 74', () => {
+  it('el total (suma de las 6 filas) es 78', () => {
     const total = computeScoreRows(SCENARIO).reduce(
       (sum, r) => sum + r.points,
       0,
     );
-    expect(total).toBe(74);
+    expect(total).toBe(78);
   });
 
   it('todas las filas son ≥ 0 (v2.0 no tiene penalizaciones)', () => {
@@ -155,7 +156,7 @@ describe('computeScoreRows — desglose calculado a mano (v2.0)', () => {
   it('es determinista: dos ejecuciones devuelven el mismo snapshot literal', () => {
     const expected = {
       group_matches: 5,
-      group_standings: 10,
+      group_standings: 14,
       bracket: 5,
       team_advancement: 4,
       podium: 40,

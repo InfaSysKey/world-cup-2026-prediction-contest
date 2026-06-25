@@ -17,9 +17,10 @@ export const GROUP_MATCH_POINTS = {
 } as const;
 
 // §3.2 — clasificación de cada grupo. Sin bonus por orden completo (el Excel
-// canónico no lo lista). Indexados por posición-1: 1.º=2, 2.º=2, 3.º=1, 4.º=1.
-// Máximo por grupo = 6; total 12 grupos = 72 pts.
-export const GROUP_STANDING_POSITION_POINTS = [2, 2, 1, 1] as const;
+// canónico no lo lista). Indexados por posición-1: 1.º=2, 2.º=2, 3.º=2, 4.º=2.
+// Máximo por grupo = 8; total 12 grupos = 96 pts. Ver ADR 0010 (corrección de
+// 2/2/1/1 a 2/2/2/2 tras revisión directa del Excel del organizador).
+export const GROUP_STANDING_POSITION_POINTS = [2, 2, 2, 2] as const;
 
 // §3.3 — cruces eliminatorios. Mismo esquema que §3.1, aplicado al marcador al
 // 120' (90'+prórroga, sin penaltis). Máximo = 32 × 5 = 160 pts.

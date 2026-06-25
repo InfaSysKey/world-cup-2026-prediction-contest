@@ -2,7 +2,7 @@
 
 Este documento describe **todas las predicciones** que puede hacer un jugador, **cuándo se bloquean**, **cómo se puntúan** y los **criterios de desempate** del ranking general.
 
-Es la referencia única para el motor de puntuación (`scoring engine`) y para el formulario de porra. **La fuente canónica de la puntuación es la pestaña de "Reglas" del Excel del organizador** (compartido el 15-jun-2026); este documento la transcribe a v2.0 (ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`). Cualquier cambio aquí implica recálculo retroactivo de la tabla.
+Es la referencia única para el motor de puntuación (`scoring engine`) y para el formulario de porra. **La fuente canónica de la puntuación es la pestaña de "Reglas" del Excel del organizador** (compartido el 15-jun-2026); este documento la transcribe a v2.1 (ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md` y la corrección de las posiciones 3.º/4.º en `docs/decisions/0010-correccion-posiciones-grupos-3-4.md`). Cualquier cambio aquí implica recálculo retroactivo de la tabla.
 
 ---
 
@@ -91,10 +91,10 @@ Tabla canónica del Excel del organizador (ADR 0009). En todos los partidos la r
 |---|---|
 | Acertar 1.º del grupo | **2** |
 | Acertar 2.º del grupo | **2** |
-| Acertar 3.º del grupo | **1** |
-| Acertar 4.º del grupo | **1** |
+| Acertar 3.º del grupo | **2** |
+| Acertar 4.º del grupo | **2** |
 
-**Máximo por grupo**: 2+2+1+1 = 6. Total 12 grupos: **72 pts**.
+**Máximo por grupo**: 2+2+2+2 = 8. Total 12 grupos: **96 pts**.
 
 ### 3.3 Cruces eliminatorios (por cruce)
 
@@ -157,12 +157,12 @@ Por cada equipo que el jugador predijo y que efectivamente llega a una fase, **2
 | Categoría | Máx. |
 |---|---|
 | Fase de grupos (marcadores) | 360 |
-| Clasificación de grupos | 72 |
+| Clasificación de grupos | 96 |
 | Cruces eliminatorios (marcadores) | 160 |
 | Equipos clasificados por fase | 128 |
 | Cuadro de honor | 60 |
 | Premios individuales | 44 |
-| **TOTAL** | **824** |
+| **TOTAL** | **848** |
 
 ---
 
@@ -262,10 +262,11 @@ El motor (`scoreEngine.calculateUserScore(userId)`) debe:
 
 ## 10. Versionado de las reglas
 
-Este documento es **v2.0**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v2.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
+Este documento es **v2.1**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v2.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
 
 ### Changelog
 
+- **v2.1** (2026-06-25) — Corrección de las posiciones 3.º y 4.º de la clasificación de cada grupo (§3.2): pasan de 1 → 2 pts cada una. La transcripción del Excel en v2.0 (ADR 0009) había leído 2/2/1/1; la revisión directa de la pestaña "Reglas" muestra 2/2/2/2. Máximo por grupo 6→8, categoría 72→96, total general 824→**848**. Disparo recálculo retroactivo de `group_standings`. Ver `docs/decisions/0010-correccion-posiciones-grupos-3-4.md`.
 - **v2.0** (2026-06-15) — Reescritura completa para alinear con la tabla canónica del Excel del organizador. Knockouts pasan a puntuar marcador + 1X2 (5/3/0). Nuevas posiciones de grupo 2/2/1/1 sin bonus. Nueva categoría "Equipos clasificados por fase" (2 pts × equipo, máx 128). Podio 30/20/10. Premios 10/7/5 cada terna. Se elimina la puntuación de mejores terceros y la penalización por hueco. Diferencia/distancia con 1X2 = 0 (regla desactivada en el Excel). Total máx = 824. Disparo recálculo retroactivo. Ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`.
 - **v1.2** (2026-06-10) — §2.3: el desempate del orden de grupo se detecta con la cadena puntos → diferencia de goles → goles a favor. Solo afecta a qué sub-órdenes pide el formulario, no a la puntuación. Ver `docs/decisions/0007-desempate-grupos-gd-gf.md`.
 - **v1.1** (2026-06-09) — §3.1: regla de marcadores de grupos basada en outcome (1X2) tras detectar incoherencia entre ejemplos. Ver `docs/decisions/0006-puntuacion-grupos-basada-en-outcome.md`.
