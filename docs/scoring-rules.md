@@ -126,6 +126,8 @@ Por cada equipo que el jugador predijo y que efectivamente llega a una fase, **2
 **Máximo total**: **128 pts**.
 
 > Implementación: la lista de "equipos predichos a fase X" se deriva del estado de la porra del jugador (standings + mejores terceros para 1/16; `predictions_knockout.winner_team_code` filtrado por phase para el resto). La lista oficial sale de `actual_group_standings` + `actual_best_thirds` + `matches.real_winner_team_code`. Los puntos son `2 × |predicted ∩ actual|` por fase.
+>
+> **Puntuación parcial (ADR 0013)**: la categoría es **por-equipo**. En cuanto un equipo se confirma (su grupo se cierra, o entra en `actual_best_thirds`, o gana su cruce), el jugador que lo predijo suma sus 2 pts inmediatamente — aunque queden otros equipos por confirmar en la misma fase. Equipos cuyo estado aún no se conoce no penalizan. No hay "all-or-nothing" por fase.
 
 ### 3.5 Cuadro de honor
 
@@ -262,10 +264,11 @@ El motor (`scoreEngine.calculateUserScore(userId)`) debe:
 
 ## 10. Versionado de las reglas
 
-Este documento es **v2.2**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v2.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
+Este documento es **v2.3**. Cualquier cambio en puntos, reglas de bloqueo o desempate genera **v2.x** con changelog. Los recálculos retroactivos quedan registrados en una tabla `score_recalculations` con timestamp, motivo y diff.
 
 ### Changelog
 
+- **v2.3** (2026-06-26) — Aclaración de §3.4: la categoría "Equipos clasificados por fase" se evalúa **por-equipo** y se otorga **parcialmente** conforme se confirman los equipos en BD, no esperando al cierre completo de la fase. Cambio de implementación (no de puntos): el motor pasaba 0 pts a todos los jugadores hasta que se cerraban los 32 equipos de 1/16; ahora suma los confirmados conforme se cierran grupos. Disparo recálculo retroactivo de `team_advancement`. Ver `docs/decisions/0013-puntos-equipos-clasificados-parciales.md`.
 - **v2.2** (2026-06-25) — Corrección del sumatorio de marcadores (§3.1, §3.3): el Excel canónico es **acumulativo** por línea, no excluyente. Un marcador exacto vale **3 (signo) + 0 (diferencia desactivada) + 5 (exacto) = 8 pts**, no 5. La transcripción en ADR 0009 leyó las tres líneas como mutuamente excluyentes y por eso el motor daba 5 al exacto. Esto explica que los Excels de los amigos puntúen más alto. Máximo grupos 360→**576**, knockouts 160→**256**, total general 848→**1160**. Disparo recálculo retroactivo de `group_matches` y `bracket`. Ver `docs/decisions/0012-correccion-puntos-marcador-exacto.md`.
 - **v2.1** (2026-06-25) — Corrección de las posiciones 3.º y 4.º de la clasificación de cada grupo (§3.2): pasan de 1 → 2 pts cada una. La transcripción del Excel en v2.0 (ADR 0009) había leído 2/2/1/1; la revisión directa de la pestaña "Reglas" muestra 2/2/2/2. Máximo por grupo 6→8, categoría 72→96, total general 824→**848**. Disparo recálculo retroactivo de `group_standings`. Ver `docs/decisions/0010-correccion-posiciones-grupos-3-4.md`.
 - **v2.0** (2026-06-15) — Reescritura completa para alinear con la tabla canónica del Excel del organizador. Knockouts pasan a puntuar marcador + 1X2 (5/3/0). Nuevas posiciones de grupo 2/2/1/1 sin bonus. Nueva categoría "Equipos clasificados por fase" (2 pts × equipo, máx 128). Podio 30/20/10. Premios 10/7/5 cada terna. Se elimina la puntuación de mejores terceros y la penalización por hueco. Diferencia/distancia con 1X2 = 0 (regla desactivada en el Excel). Total máx = 824. Disparo recálculo retroactivo. Ver `docs/decisions/0009-puntuacion-segun-excel-canonico.md`.
