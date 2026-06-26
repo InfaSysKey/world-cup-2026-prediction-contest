@@ -56,6 +56,22 @@ describe('scoreTeamAdvancement (§3.4)', () => {
     expect(cuartos).toEqual({ phase: 'cuartos', hits: 0, points: 0 });
   });
 
+  // ADR 0013: la categoría se evalúa por-equipo. El orquestador pasa el conjunto
+  // de equipos confirmados hasta ahora — si está incompleto, se cuenta lo que
+  // YA esté confirmado y los que aún no se sabe no penalizan.
+  it('actual parcial (1/16 con 12 de 32) puntúa los aciertos confirmados sin penalizar el resto', () => {
+    const s = scoreTeamAdvancement(
+      only(
+        '1/16',
+        ['ESP', 'BRA', 'ARG', 'POR'],
+        ['ESP', 'FRA', 'BRA', 'NED', 'GER', 'ITA', 'BEL', 'URU', 'KOR', 'JPN', 'AUS', 'MEX'],
+      ),
+    );
+    const oct = s.byPhase.find((p) => p.phase === '1/16');
+    expect(oct).toEqual({ phase: '1/16', hits: 2, points: 4 });
+    expect(s.points).toBe(4);
+  });
+
   it('intersección de 2 equipos en semi → 2 hits × 2 pts = 4', () => {
     const s = scoreTeamAdvancement(
       only('semi', ['ESP', 'FRA'], ['ESP', 'FRA', 'BRA', 'ARG']),

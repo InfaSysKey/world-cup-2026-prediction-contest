@@ -31,9 +31,11 @@ export type TeamAdvancementInputs = {
   // mejores terceros. Para el resto, los ganadores predichos en la ronda previa.
   // Para '3-4', los perdedores predichos en semis.
   predicted: Record<TeamAdvancementPhase, ReadonlyArray<string>>;
-  // Equipos que realmente llegaron a cada fase, derivados de los resultados
-  // oficiales. Null si la app aún no conoce el set completo de esa fase (p. ej.
-  // semis aún no terminadas → '3-4' y 'final' son null).
+  // Equipos POSITIVAMENTE confirmados hasta ahora en cada fase, derivados de los
+  // resultados oficiales. Puede estar incompleto: la puntuación es por-equipo
+  // (scoring-rules.md §3.4, ADR 0013), así que un set parcial igualmente suma
+  // los aciertos confirmados sin penalizar los todavía desconocidos. Null
+  // significa "no hay nada confirmado todavía" y devuelve 0 pts en esa fase.
   actual: Record<TeamAdvancementPhase, ReadonlyArray<string> | null>;
 };
 

@@ -43,7 +43,6 @@ import {
 } from './ranking';
 import { resolveBracket, type ResolvedMatch } from './resolve-bracket';
 import {
-  TEAM_ADVANCEMENT_PHASES,
   type TeamAdvancementInputs,
   type TeamAdvancementPhase,
 } from './team-advancement';
@@ -298,15 +297,6 @@ type AdvancementSources = {
   actualBtByPos: ReadonlyMap<number, string>;
 };
 
-const PHASE_COUNTS: Record<TeamAdvancementPhase, number> = {
-  '1/16': 32,
-  '1/8': 16,
-  cuartos: 8,
-  semi: 4,
-  '3-4': 2,
-  final: 2,
-};
-
 const SOURCE_PHASE: Partial<Record<TeamAdvancementPhase, TeamAdvancementPhase>> =
   {
     '1/8': '1/16',
@@ -359,6 +349,14 @@ function buildTeamAdvancementInputs(
   };
 
   // ---- actual ----
+  // Cada fase devuelve los equipos POSITIVAMENTE confirmados hasta ahora, no el
+  // set completo. La puntuación de §3.4 es por-equipo (`scoring-rules.md:115`):
+  // si España ya está confirmada en 1/16 porque su grupo cerró, el jugador que
+  // la predijo suma 2 pts ya — aunque queden grupos por cerrar. Equipos cuyo
+  // estado aún no se conoce (grupo abierto, mejor tercero sin calcular, cruce
+  // sin jugar) simplemente no aparecen en `actual` y por tanto no suman aún,
+  // sin penalizar (lo confirmará la siguiente recálculo cuando se cierren).
+  // Ver ADR 0013.
   const actual: TeamAdvancementInputs['actual'] = {
     '1/16': actualRoundOf32(s),
     '1/8': actualWinnersInPhase(s.knockoutMatches, '1/16'),
@@ -367,15 +365,6 @@ function buildTeamAdvancementInputs(
     '3-4': actualLosersInSemis(s.knockoutMatches),
     final: actualWinnersInPhase(s.knockoutMatches, 'semi'),
   };
-
-  // Si un set de actual no tiene el tamaño esperado, todavía no está cerrada esa
-  // fase: marca como null para que team_advancement la trate como "pendiente".
-  for (const phase of TEAM_ADVANCEMENT_PHASES) {
-    const list = actual[phase];
-    if (list !== null && list.length !== PHASE_COUNTS[phase]) {
-      actual[phase] = null;
-    }
-  }
   // Silencia el warning de TS: source phase aún no usado tras simplificar derivación.
   void SOURCE_PHASE;
 
@@ -395,23 +384,17 @@ function predictedRoundOf32(s: AdvancementSources): string[] {
   return result;
 }
 
-function actualRoundOf32(s: AdvancementSources): string[] | null {
+function actualRoundOf32(s: AdvancementSources): string[] {
   const codes: string[] = [];
   for (const groupLetter of GROUP_LETTERS) {
     for (const pos of [1, 2] as const) {
       const code = s.actualGsByKey.get(`${groupLetter}:${pos}`);
-      if (!code) {
-        return null;
-      }
-      codes.push(code);
+      if (code) codes.push(code);
     }
   }
   for (let i = 1; i <= BEST_THIRDS_COUNT; i += 1) {
     const code = s.actualBtByPos.get(i);
-    if (!code) {
-      return null;
-    }
-    codes.push(code);
+    if (code) codes.push(code);
   }
   return codes;
 }
