@@ -11,7 +11,7 @@ El ADR 0009 (15-jun-2026) adoptó el Excel del organizador como fuente única de
 
 Esa lectura interpretó las tres líneas del Excel ("Signo 1X2", "Diferencia/Distancia de goles con 1X2 acertado", "Resultado exacto") como mutuamente exclusivas. El motor de puntuación devolvía `points = 5` para un marcador exacto y `points = 3` para un acierto-solo-de-signo.
 
-El 25-jun-2026, al comparar la clasificación de la app con la del Excel de uno de los amigos del grupo (Uzbekos), Carlos detectó que las puntuaciones no cuadraban. La hoja del Excel mostraba columnas con **máximos teóricos por categoría** que no encajaban con la lectura del ADR 0009:
+El 25-jun-2026, al comparar la clasificación de la app con la del Excel de uno de los participantes, el organizador detectó que las puntuaciones no cuadraban. La hoja del Excel mostraba columnas con **máximos teóricos por categoría** que no encajaban con la lectura del ADR 0009:
 
 | Columna del Excel | Máx. declarado | Máx. si exacto=5 (ADR 0009) | Máx. si exacto=3+5=8 |
 |---|---:|---:|---:|

@@ -15,7 +15,7 @@
 #   7. Verificación con un SELECT que cuenta filas.
 #
 # Uso:
-#   VPS_SSH=root@82.223.121.149 ./infra/scripts/v2-apply.sh
+#   VPS_SSH=root@TU_VPS ./infra/scripts/v2-apply.sh
 #
 # Variables del entorno:
 #   VPS_SSH              (obligatoria) destino SSH del VPS.
@@ -41,7 +41,7 @@ CONTAINER_APP="${PORRA_APP_CONTAINER:-porra-app}"
 
 if [ -z "$VPS_SSH" ]; then
   echo "Define VPS_SSH antes de ejecutar, p.ej.:" >&2
-  echo "  VPS_SSH=root@82.223.121.149 ./infra/scripts/v2-apply.sh" >&2
+  echo "  VPS_SSH=root@TU_VPS ./infra/scripts/v2-apply.sh" >&2
   exit 1
 fi
 
