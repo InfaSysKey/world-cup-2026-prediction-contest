@@ -12,6 +12,7 @@
 // La función NO toca BD: recibe la lista de matches ya cargada como input y
 // devuelve un id o null. Mantenemos pureza para test sin mock de drizzle.
 
+import { looksLikeOpenfootballPlaceholder } from './openfootball-placeholders';
 import { phaseFromOpenfootballRound } from './round-map';
 import { teamCodeFromOpenfootball } from './team-name-map';
 
@@ -49,6 +50,16 @@ export function findMatchForEntry(
   const homeCode = teamCodeFromOpenfootball(entry.team1);
   const awayCode = teamCodeFromOpenfootball(entry.team2);
   if (!homeCode || !awayCode) {
+    // openfootball, antes de que se resuelva el bracket, mete placeholders
+    // ("1F", "3A/B/C/D/F", "W74") en team1/team2. NO son nombres de equipo y
+    // los reportamos como BRACKET_PENDING (que el orquestador silencia) en
+    // vez de UNKNOWN_TEAM_NAME (que ensucia el log del cron diario).
+    if (
+      looksLikeOpenfootballPlaceholder(entry.team1) ||
+      looksLikeOpenfootballPlaceholder(entry.team2)
+    ) {
+      return { kind: 'skipped', reason: 'BRACKET_PENDING' };
+    }
     return {
       kind: 'skipped',
       reason: 'UNKNOWN_TEAM_NAME',

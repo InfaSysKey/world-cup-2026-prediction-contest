@@ -52,6 +52,11 @@ import type { Phase } from '@/lib/db';
 
 const MAX_ITERATIONS = 8;
 
+// Ejecutor compatible: la BD global o una transacción. Mismo contrato de
+// Drizzle, así que las funciones de carga/persistencia sirven para las dos.
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+type Executor = typeof db | Tx;
+
 export type ImporterReport = {
   // Marcadores.
   scoresApplied: number;
@@ -116,21 +121,26 @@ export async function importResults(
     return report;
   }
 
-  await db.transaction(async (tx) => {
-    await runIterations(data, report, tx);
-    // Recálculo total al final si hubo cambios — más simple y barato que
-    // intentar recálculos selectivos cuando hay cambios en múltiples
-    // categorías. recalculateAll es idempotente.
-    const anyChanges =
-      report.scoresApplied > 0 ||
-      report.groupStandingsClosed.length > 0 ||
-      report.bestThirdsClosed ||
-      report.bracketAdvanced > 0;
-    if (anyChanges) {
-      await recalculateAll(options.adminUserId, options.reason);
-      report.recalcPerformed = true;
-    }
-  });
+  // IMPORTANTE: las escrituras del importer NO se envuelven en una única
+  // transacción. Si se envolvieran, `recalculateAll` (que abre su propia
+  // transacción al ser llamado después) NO vería los standings/marcadores
+  // recién insertados — el pool de pg le daría una conexión distinta y la
+  // transacción del importer aún no habría commiteado. Resultado: los
+  // group_standings se cerraban en BD pero los pts no se reflejaban en
+  // `scores` hasta el siguiente recálculo. Las operaciones individuales del
+  // importer son idempotentes (upserts con onConflict), así que perder la
+  // atomicidad global es aceptable: una corrida que falle a mitad se puede
+  // relanzar sin daño.
+  await runIterations(data, report, db);
+  const anyChanges =
+    report.scoresApplied > 0 ||
+    report.groupStandingsClosed.length > 0 ||
+    report.bestThirdsClosed ||
+    report.bracketAdvanced > 0;
+  if (anyChanges) {
+    await recalculateAll(options.adminUserId, options.reason);
+    report.recalcPerformed = true;
+  }
 
   return report;
 }
@@ -139,7 +149,7 @@ export async function importResults(
 async function runIterations(
   data: OpenfootballFile,
   report: ImporterReport,
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0] | null,
+  tx: Executor | null,
 ): Promise<void> {
   for (let iter = 1; iter <= MAX_ITERATIONS; iter += 1) {
     report.iterations = iter;
@@ -170,7 +180,7 @@ function sameSnapshot(a: string, b: string): boolean {
 async function iterApplyScores(
   data: OpenfootballFile,
   report: ImporterReport,
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0] | null,
+  tx: Executor | null,
 ): Promise<void> {
   const exec = tx ?? db;
   const allMatches = await exec
@@ -253,7 +263,7 @@ async function iterApplyScores(
 // === Paso 2: auto-cerrar standings de grupos ===
 async function iterAutoStandings(
   report: ImporterReport,
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0] | null,
+  tx: Executor | null,
 ): Promise<void> {
   const exec = tx ?? db;
   const groupTeams = await exec
@@ -336,7 +346,7 @@ async function iterAutoStandings(
 // === Paso 3: auto-cerrar mejores terceros ===
 async function iterAutoBestThirds(
   report: ImporterReport,
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0] | null,
+  tx: Executor | null,
 ): Promise<void> {
   const exec = tx ?? db;
   const existing = await exec
@@ -406,7 +416,7 @@ async function iterAutoBestThirds(
 // === Paso 4: avanzar bracket ===
 async function iterAdvanceBracket(
   report: ImporterReport,
-  tx: Parameters<Parameters<typeof db.transaction>[0]>[0] | null,
+  tx: Executor | null,
 ): Promise<void> {
   const exec = tx ?? db;
   const allTeams = await exec
