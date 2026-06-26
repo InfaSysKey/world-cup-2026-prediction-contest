@@ -7,10 +7,7 @@
 # Formato: una línea por archivo, "nombre.xlsx=email@dominio". Las líneas vacías
 # y las que empiezan por `#` se ignoran.
 
-Excel-Mundial-2026_Chambao.xlsx=chambao@example.com
-Excel-Mundial-2026_Charli.xlsx=charli@example.com
-Excel-Mundial-2026_Garrapto (1).xlsx=garrapto@example.com
-Excel-Mundial-2026_Ivan.xlsx=ivan@example.com
-Excel-Mundial-2026-Alber.xlsx=alber@example.com
-Excel-Mundial-2026-PORRA-CARLOS.xlsx=carlos@porra.local
-Excel-Mundial-2026-Ruben.xlsx=ruben@example.com
+Excel-Mundial-2026-Usuario1.xlsx=usuario1@example.com
+Excel-Mundial-2026-Usuario2.xlsx=usuario2@example.com
+Excel-Mundial-2026-Usuario3.xlsx=usuario3@example.com
+Excel-Mundial-2026-Admin.xlsx=admin@porra.local

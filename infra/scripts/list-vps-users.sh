@@ -3,14 +3,14 @@
 # lectura; útil antes de v2-apply.sh para confirmar id/email/nickname.
 #
 # Uso:
-#   VPS_SSH=root@82.223.121.149 ./infra/scripts/list-vps-users.sh
+#   VPS_SSH=root@TU_VPS ./infra/scripts/list-vps-users.sh
 set -euo pipefail
 
 VPS_SSH="${VPS_SSH:-}"
 CONTAINER_DB="${PORRA_DB_CONTAINER:-porra-db}"
 
 if [ -z "$VPS_SSH" ]; then
-  echo "Define VPS_SSH (p.ej. root@82.223.121.149)" >&2
+  echo "Define VPS_SSH (p.ej. root@TU_VPS)" >&2
   exit 1
 fi
 
