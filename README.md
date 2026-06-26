@@ -3,7 +3,7 @@
 > App web para gestionar una porra del Mundial 2026 entre un grupo cerrado de amigos. Acceso por invitación, predicciones bloqueadas al pitido inicial, puntos y ranking automáticos.
 
 <p align="center">
-  <img src="docs/screenshots/05-hero.svg" alt="Porra Mundial 2026" width="100%"/>
+  <img src="docs/screenshots/03-clasificacion.png" alt="Porra Mundial 2026 — clasificación" width="100%"/>
 </p>
 
 <p align="center">
@@ -35,9 +35,9 @@ Una aplicación web para que un grupo cerrado de **hasta 15 amigos** se juegue u
 | | |
 |:---:|:---:|
 | **Login** | **Formulario de la porra** |
-| ![Login](docs/screenshots/01-login.svg) | ![Porra](docs/screenshots/02-porra-form.svg) |
+| ![Login](docs/screenshots/01-login.png) | ![Porra](docs/screenshots/02-porra-form.png) |
 | **Clasificación** | **Panel admin** |
-| ![Ranking](docs/screenshots/03-clasificacion.svg) | ![Admin](docs/screenshots/04-admin.svg) |
+| ![Ranking](docs/screenshots/03-clasificacion.png) | ![Admin](docs/screenshots/04-admin.png) |
 
 > Las capturas son placeholders SVG. Sustitúyelas por PNG reales en `docs/screenshots/` (mismo nombre, extensión `.png`) y actualiza las extensiones en este README.
 
