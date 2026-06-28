@@ -1,3 +1,8 @@
+import {
+  buildCombinationKey,
+  lookupBestThirdGroupForSlot,
+} from './best-thirds-allocation';
+
 // Resuelve `matches.home_team_code` y `away_team_code` para los 32 cruces
 // eliminatorios, a partir del estado de los oficiales:
 //
@@ -10,8 +15,11 @@
 //
 //   "1X" / "2X"   — 1.º o 2.º de grupo X (X = A..L).
 //   "3XYZW..."    — mejor tercero cuyo group_letter esté en {X,Y,Z,W,...}.
-//                   Asumimos que solo UN tercero clasificado tiene su grupo en
-//                   ese set (la FIFA define los 8 paquetes para que sea así).
+//                   La asignación NO es greedy ("el primer tercero cuyo grupo
+//                   esté en el set"): los 8 cruces se solapan y un greedy
+//                   asigna el mismo equipo a varios. FIFA fija la asignación
+//                   correcta en el Annex C del reglamento (495 combinaciones
+//                   posibles). Implementación en `best-thirds-allocation.ts`.
 //   "WNN"         — ganador (real_winner_team_code) del match con id NN.
 //   "LNN"         — perdedor del match NN (home/away_team_code distinto al
 //                   real_winner_team_code).
@@ -47,7 +55,8 @@ export type PendingReason =
   | 'BAD_SLOT_FORMAT'
   | 'STANDING_NOT_AVAILABLE'
   | 'BEST_THIRD_NOT_AVAILABLE'
-  | 'PREVIOUS_MATCH_NOT_FINISHED';
+  | 'PREVIOUS_MATCH_NOT_FINISHED'
+  | 'THIRDS_COMBINATION_UNKNOWN'; // combinación de 8 grupos no cubierta en Annex C
 
 export type BracketUpdate = {
   matchId: number;
@@ -81,33 +90,59 @@ export function resolveSlotRef(
     return { kind: 'resolved', teamCode: code };
   }
 
-  // Mejor tercero "3ABCDF": grupo en el set indicado.
+  // Mejor tercero "3ABCDF": asignación según Annex C del reglamento FIFA.
+  // Los slot_refs entre cruces se solapan y un greedy asignaría el mismo
+  // tercero a varios cruces (bug histórico). FIFA define en Annex C qué grupo
+  // va a cada cruce para cada una de las 495 combinaciones posibles.
   const bestThirdMatch = /^3([A-L]{3,6})$/.exec(slotRef);
   if (bestThirdMatch) {
-    const allowedGroups = new Set(bestThirdMatch[1].split(''));
-    // Buscamos en los 8 mejores terceros aquel cuyo grupo esté en allowedGroups.
-    // Importante: si todavía no se han cerrado los 8, devolvemos pending.
-    let resolved: string | null = null;
-    let pending = false;
+    // Recoge los grupos de los terceros confirmados hasta ahora.
+    const groupsRepresented: string[] = [];
+    let anyMissing = false;
     for (let pos = 1; pos <= 8; pos += 1) {
       const code = standings.bestThirdsByPosition.get(pos);
       if (!code) {
-        pending = true;
+        anyMissing = true;
         continue;
       }
       const group = standings.teamGroupByCode.get(code);
-      if (group && allowedGroups.has(group)) {
-        resolved = code;
-        break;
-      }
+      if (group) groupsRepresented.push(group);
     }
-    if (resolved) {
-      return { kind: 'resolved', teamCode: resolved };
+    if (anyMissing || groupsRepresented.length < 8) {
+      return {
+        kind: 'pending',
+        reason: 'BEST_THIRD_NOT_AVAILABLE',
+        detail: slotRef,
+      };
+    }
+    const combinationKey = buildCombinationKey(groupsRepresented);
+    if (!combinationKey) {
+      return {
+        kind: 'pending',
+        reason: 'THIRDS_COMBINATION_UNKNOWN',
+        detail: `slot=${slotRef} groups=[${groupsRepresented.sort().join(',')}]`,
+      };
+    }
+    const assignedGroup = lookupBestThirdGroupForSlot(combinationKey, slotRef);
+    if (!assignedGroup) {
+      return {
+        kind: 'pending',
+        reason: 'THIRDS_COMBINATION_UNKNOWN',
+        detail: `combination=${combinationKey} slot=${slotRef}`,
+      };
+    }
+    // Buscamos el tercero cuyo grupo coincide con el asignado por Annex C.
+    for (let pos = 1; pos <= 8; pos += 1) {
+      const code = standings.bestThirdsByPosition.get(pos);
+      if (!code) continue;
+      if (standings.teamGroupByCode.get(code) === assignedGroup) {
+        return { kind: 'resolved', teamCode: code };
+      }
     }
     return {
       kind: 'pending',
-      reason: pending ? 'BEST_THIRD_NOT_AVAILABLE' : 'STANDING_NOT_AVAILABLE',
-      detail: slotRef,
+      reason: 'BEST_THIRD_NOT_AVAILABLE',
+      detail: `assignedGroup=${assignedGroup} no team`,
     };
   }
 
